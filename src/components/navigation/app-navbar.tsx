@@ -63,13 +63,26 @@ export function AppNavbar() {
           ))}
 
           {user ? (
-            <button
-              className="ml-2 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold text-zinc-950 transition-colors hover:bg-zinc-100"
-              onClick={handleSignOut}
-              type="button"
-            >
-              Sign out
-            </button>
+            <>
+              <Link
+                className={[
+                  "ml-2 rounded-md px-3 py-2 text-sm font-semibold transition-colors",
+                  pathname === `/${user.uid}`
+                    ? "bg-zinc-100 text-zinc-950"
+                    : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950",
+                ].join(" ")}
+                href={`/${user.uid}`}
+              >
+                My account
+              </Link>
+              <button
+                className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold text-zinc-950 transition-colors hover:bg-zinc-100"
+                onClick={handleSignOut}
+                type="button"
+              >
+                Sign out
+              </button>
+            </>
           ) : (
             <Link
               className={[
@@ -120,13 +133,27 @@ export function AppNavbar() {
             ))}
 
             {user ? (
-              <button
-                className="rounded-md border border-zinc-300 bg-white px-3 py-3 text-left text-sm font-semibold text-zinc-950 transition-colors hover:bg-zinc-100"
-                onClick={handleSignOut}
-                type="button"
-              >
-                Sign out
-              </button>
+              <>
+                <Link
+                  className={[
+                    "rounded-md px-3 py-3 text-sm font-semibold transition-colors",
+                    pathname === `/${user.uid}`
+                      ? "bg-zinc-100 text-zinc-950"
+                      : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950",
+                  ].join(" ")}
+                  href={`/${user.uid}`}
+                  onClick={closeMenu}
+                >
+                  My account
+                </Link>
+                <button
+                  className="rounded-md border border-zinc-300 bg-white px-3 py-3 text-left text-sm font-semibold text-zinc-950 transition-colors hover:bg-zinc-100"
+                  onClick={handleSignOut}
+                  type="button"
+                >
+                  Sign out
+                </button>
+              </>
             ) : (
               <Link
                 className={[

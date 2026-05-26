@@ -61,9 +61,17 @@ export function UserSessionPanel() {
           <p className="mt-1 text-sm text-zinc-600">{user.email}</p>
         ) : null}
       </div>
-      <AppButton variant="secondary" onClick={() => signOut(firebaseAuth)}>
-        Sign out
-      </AppButton>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Link
+          className="inline-flex h-11 items-center justify-center rounded-md border border-transparent bg-emerald-600 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700"
+          href={`/${user.uid}`}
+        >
+          My account
+        </Link>
+        <AppButton variant="secondary" onClick={() => signOut(firebaseAuth)}>
+          Sign out
+        </AppButton>
+      </div>
     </SurfaceCard>
   );
 }

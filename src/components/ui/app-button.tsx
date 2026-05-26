@@ -1,7 +1,7 @@
 import type { ButtonHTMLAttributes } from "react";
 
 type AppButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "primary" | "secondary" | "ghost";
+  variant?: "primary" | "secondary" | "ghost" | "danger";
 };
 
 const buttonStyles = {
@@ -11,6 +11,8 @@ const buttonStyles = {
     "border-zinc-300 bg-white text-zinc-950 hover:bg-zinc-100 focus-visible:outline-zinc-700",
   ghost:
     "border-transparent bg-transparent text-zinc-700 hover:bg-zinc-100 focus-visible:outline-zinc-700",
+  danger:
+    "border-transparent bg-red-600 text-white shadow-sm hover:bg-red-700 focus-visible:outline-red-700",
 };
 
 export function AppButton({

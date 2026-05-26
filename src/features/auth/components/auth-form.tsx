@@ -15,6 +15,7 @@ import { AppButton } from "@/components/ui/app-button";
 import { InlineAlert } from "@/components/ui/inline-alert";
 import { TextInput } from "@/components/ui/text-input";
 import { firebaseAuth } from "@/firebase/firebase-client";
+import { ensureUserProfile } from "@/features/account/lib/user-profile";
 import { getFriendlyAuthError } from "@/features/auth/lib/firebase-auth-errors";
 
 type AuthFormProps = {
@@ -31,9 +32,9 @@ export function AuthForm({ mode }: AuthFormProps) {
   const [successMessage, setSuccessMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  function completeAuth(message: string) {
+  function completeAuth(message: string, nextPath = "/") {
     setSuccessMessage(message);
-    router.push("/");
+    router.push(nextPath);
     router.refresh();
   }
 
@@ -57,9 +58,18 @@ export function AuthForm({ mode }: AuthFormProps) {
           });
         }
 
-        completeAuth("Account created. You are signed in now.");
+        await ensureUserProfile(credential.user);
+        completeAuth(
+          "Account created. You are signed in now.",
+          `/${credential.user.uid}`,
+        );
       } else {
-        await signInWithEmailAndPassword(firebaseAuth, email, password);
+        const credential = await signInWithEmailAndPassword(
+          firebaseAuth,
+          email,
+          password,
+        );
+        await ensureUserProfile(credential.user);
         completeAuth("Welcome back. You are signed in now.");
       }
     } catch (error) {
@@ -80,8 +90,9 @@ export function AuthForm({ mode }: AuthFormProps) {
 
     try {
       const provider = new GoogleAuthProvider();
-      await signInWithPopup(firebaseAuth, provider);
-      completeAuth("You are signed in with Google.");
+      const credential = await signInWithPopup(firebaseAuth, provider);
+      await ensureUserProfile(credential.user);
+      completeAuth("You are signed in with Google.", `/${credential.user.uid}`);
     } catch (error) {
       if (error instanceof FirebaseError) {
         setErrorMessage(getFriendlyAuthError(error.code));
