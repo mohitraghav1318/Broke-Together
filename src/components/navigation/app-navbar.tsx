@@ -8,6 +8,7 @@ import { firebaseAuth } from "@/firebase/firebase-client";
 
 const navLinks = [
   { href: "/", label: "Home" },
+  { href: "/help", label: "Help" },
   { href: "/login", label: "Sign in" },
 ];
 
@@ -29,7 +30,7 @@ export function AppNavbar() {
     closeMenu();
   }
 
-  const visibleLinks = user ? navLinks.slice(0, 1) : navLinks;
+  const visibleLinks = user ? navLinks.slice(0, 2) : navLinks;
 
   return (
     <header className="sticky top-0 z-20 border-b border-zinc-200 bg-white/95 backdrop-blur">
