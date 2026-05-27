@@ -21,7 +21,7 @@ export default async function NotebookReportPage({
   return (
     <>
       <AppNavbar />
-      <main className="min-h-[calc(100vh-4rem)] bg-stone-50 px-4 py-10 text-zinc-950 sm:px-6 lg:px-8">
+      <main className="min-h-[calc(100vh-4rem)] bg-stone-50 px-3 py-6 text-zinc-950 sm:px-6 sm:py-10 lg:px-8">
         <div className="mx-auto w-full max-w-6xl">
           <NotebookReport notebookId={notebookId} />
         </div>

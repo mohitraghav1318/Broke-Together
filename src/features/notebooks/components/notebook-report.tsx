@@ -128,10 +128,10 @@ function CategoryPieChart({ categories }: { categories: CategorySummary[] }) {
   }
 
   return (
-    <div className="grid gap-5 sm:grid-cols-[180px_1fr] sm:items-center">
+    <div className="grid gap-5 sm:grid-cols-[160px_1fr] sm:items-center">
       <svg
         aria-label="Category expense pie chart"
-        className="mx-auto h-44 w-44"
+        className="mx-auto h-36 w-36 sm:h-44 sm:w-44"
         role="img"
         viewBox="0 0 140 140"
       >
@@ -183,14 +183,14 @@ function CategoryPieChart({ categories }: { categories: CategorySummary[] }) {
       <div className="grid gap-3">
         {categories.map((category) => (
           <div
-            className="grid grid-cols-[auto_1fr_auto] items-center gap-3 text-sm"
+            className="grid grid-cols-[auto_1fr_auto] items-center gap-2 text-xs sm:gap-3 sm:text-sm"
             key={category.category}
           >
             <span
               className="size-3 rounded-sm"
               style={{ backgroundColor: category.color }}
             />
-            <span className="font-medium text-zinc-800">
+            <span className="truncate font-medium text-zinc-800">
               {category.category}
             </span>
             <span className="text-zinc-600">
@@ -470,20 +470,20 @@ export function NotebookReport({ notebookId }: NotebookReportProps) {
 
   return (
     <div className="grid gap-6">
-      <section className="rounded-lg border border-zinc-200 bg-white p-6 shadow-sm">
-        <div className="flex flex-wrap items-start justify-between gap-4">
+      <section className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm sm:p-6">
+        <div className="grid gap-4 sm:flex sm:flex-wrap sm:items-start sm:justify-between">
           <div>
             <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">
               Report
             </p>
-            <h1 className="mt-2 text-3xl font-semibold text-zinc-950">
+            <h1 className="mt-2 text-2xl font-semibold text-zinc-950 sm:text-3xl">
               {notebook.name}
             </h1>
             <p className="mt-2 text-sm leading-6 text-zinc-600">
               Expense review, category split, timeline, and final settlement.
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
             <AppButton
               disabled={isDownloading}
               onClick={handleDownloadReport}
@@ -503,7 +503,7 @@ export function NotebookReport({ notebookId }: NotebookReportProps) {
               </AppButton>
             )}
             <Link
-              className="inline-flex h-11 items-center justify-center rounded-md border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-950 transition-colors hover:bg-zinc-100"
+              className="inline-flex h-11 items-center justify-center rounded-md border border-zinc-300 bg-white px-4 text-center text-sm font-semibold text-zinc-950 transition-colors hover:bg-zinc-100"
               href={`/notebooks/${notebookId}`}
             >
               Back to notebook
@@ -517,7 +517,7 @@ export function NotebookReport({ notebookId }: NotebookReportProps) {
       ) : null}
 
       <div id="report-container" className="grid gap-6 bg-stone-50 pb-4">
-        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <section className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
           <SurfaceCard>
             <p className="text-sm font-medium text-zinc-600">Total expense</p>
             <p className="mt-2 text-2xl font-semibold text-zinc-950">
@@ -544,7 +544,7 @@ export function NotebookReport({ notebookId }: NotebookReportProps) {
           </SurfaceCard>
         </section>
 
-        <div className="grid gap-6 lg:grid-cols-[1fr_420px]">
+        <div className="grid gap-4 sm:gap-6 lg:grid-cols-[1fr_420px]">
           <SurfaceCard>
             <div className="mb-5">
               <h2 className="text-xl font-semibold text-zinc-950">
@@ -570,7 +570,7 @@ export function NotebookReport({ notebookId }: NotebookReportProps) {
           </SurfaceCard>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-[1fr_1fr]">
+        <div className="grid gap-4 sm:gap-6 lg:grid-cols-[1fr_1fr]">
           <SurfaceCard>
             <div className="mb-5">
               <h2 className="text-xl font-semibold text-zinc-950">
@@ -593,8 +593,9 @@ export function NotebookReport({ notebookId }: NotebookReportProps) {
               </p>
             </div>
             {settlements.length ? (
-              <div className="overflow-hidden rounded-lg border border-zinc-200">
-                <div className="grid grid-cols-3 gap-3 bg-zinc-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+              <div className="-mx-4 overflow-x-auto px-4 sm:-mx-0 sm:px-0">
+                <div className="min-w-[320px] overflow-hidden rounded-lg border border-zinc-200">
+                <div className="grid grid-cols-[1fr_1fr_auto] gap-2 bg-zinc-50 px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-zinc-500 sm:grid-cols-3 sm:gap-3 sm:px-4 sm:py-3">
                   <span>From</span>
                   <span>To</span>
                   <span>Amount</span>
@@ -602,19 +603,20 @@ export function NotebookReport({ notebookId }: NotebookReportProps) {
                 <div className="divide-y divide-zinc-200">
                   {settlements.map((settlement) => (
                     <div
-                      className="grid grid-cols-3 gap-3 px-4 py-4 text-sm"
+                      className="grid grid-cols-[1fr_1fr_auto] gap-2 px-3 py-3 text-xs sm:grid-cols-3 sm:gap-3 sm:px-4 sm:py-4 sm:text-sm"
                       key={`${settlement.from}-${settlement.to}-${settlement.amount}`}
                     >
-                      <span className="font-medium text-zinc-950">
+                      <span className="truncate font-medium text-zinc-950">
                         {settlement.from}
                       </span>
-                      <span className="text-zinc-700">{settlement.to}</span>
-                      <span className="font-semibold text-zinc-950">
+                      <span className="truncate text-zinc-700">{settlement.to}</span>
+                      <span className="whitespace-nowrap font-semibold text-zinc-950">
                         {formatMoney(settlement.amount)}
                       </span>
                     </div>
                   ))}
                 </div>
+              </div>
               </div>
             ) : (
               <p className="rounded-md border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-600">
@@ -633,8 +635,9 @@ export function NotebookReport({ notebookId }: NotebookReportProps) {
               </p>
             </div>
             {categories.length ? (
-              <div className="overflow-hidden rounded-lg border border-zinc-200">
-                <div className="grid grid-cols-[1fr_90px_120px] gap-3 bg-zinc-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+              <div className="-mx-4 overflow-x-auto px-4 sm:-mx-0 sm:px-0">
+              <div className="min-w-[320px] overflow-hidden rounded-lg border border-zinc-200">
+                <div className="grid grid-cols-[1fr_60px_90px] gap-2 bg-zinc-50 px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-zinc-500 sm:grid-cols-[1fr_90px_120px] sm:gap-3 sm:px-4 sm:py-3">
                   <span>Category</span>
                   <span>Entries</span>
                   <span>Total</span>
@@ -642,23 +645,25 @@ export function NotebookReport({ notebookId }: NotebookReportProps) {
                 <div className="divide-y divide-zinc-200">
                   {categories.map((category) => (
                     <div
-                      className="grid grid-cols-[1fr_90px_120px] gap-3 px-4 py-4 text-sm"
+                      className="grid grid-cols-[1fr_60px_90px] gap-2 px-3 py-3 text-xs sm:grid-cols-[1fr_90px_120px] sm:gap-3 sm:px-4 sm:py-4 sm:text-sm"
                       key={category.category}
                     >
-                      <span className="flex items-center gap-3 font-medium text-zinc-950">
+                      <span className="flex items-center gap-2 font-medium text-zinc-950 sm:gap-3">
                         <span
-                          className="size-3 rounded-sm"
+                          className="size-2.5 shrink-0 rounded-sm sm:size-3"
                           style={{ backgroundColor: category.color }}
                         />
-                        {category.category}
+                        <span className="truncate">{category.category}</span>
                       </span>
                       <span className="text-zinc-700">{category.count}</span>
+
                       <span className="font-semibold text-zinc-950">
                         {formatMoney(category.amount)}
                       </span>
                     </div>
                   ))}
                 </div>
+              </div>
               </div>
             ) : (
               <p className="rounded-md border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-600">
@@ -679,8 +684,8 @@ export function NotebookReport({ notebookId }: NotebookReportProps) {
           </div>
           {entries.length ? (
             <div className="overflow-x-auto">
-              <div className="min-w-[720px] overflow-hidden rounded-lg border border-zinc-200">
-                <div className="grid grid-cols-[120px_1fr_130px_130px_130px] gap-3 bg-zinc-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+              <div className="min-w-[580px] overflow-hidden rounded-lg border border-zinc-200">
+                <div className="grid grid-cols-[90px_1fr_100px_100px_100px] gap-2 bg-zinc-50 px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-zinc-500 sm:grid-cols-[120px_1fr_130px_130px_130px] sm:gap-3 sm:px-4 sm:py-3">
                   <span>Date</span>
                   <span>Description</span>
                   <span>Category</span>
@@ -690,7 +695,7 @@ export function NotebookReport({ notebookId }: NotebookReportProps) {
                 <div className="divide-y divide-zinc-200">
                   {entries.map((entry) => (
                     <div
-                      className="grid grid-cols-[120px_1fr_130px_130px_130px] gap-3 px-4 py-4 text-sm"
+                      className="grid grid-cols-[90px_1fr_100px_100px_100px] gap-2 px-3 py-3 text-xs sm:grid-cols-[120px_1fr_130px_130px_130px] sm:gap-3 sm:px-4 sm:py-4 sm:text-sm"
                       key={entry.id}
                     >
                       <span className="text-zinc-600">
@@ -700,11 +705,11 @@ export function NotebookReport({ notebookId }: NotebookReportProps) {
                           year: "numeric",
                         }).format(getEntryDate(entry))}
                       </span>
-                      <span className="font-medium text-zinc-950">
+                      <span className="truncate font-medium text-zinc-950">
                         {entry.description || "No description"}
                       </span>
-                      <span className="text-zinc-700">{entry.category}</span>
-                      <span className="text-zinc-700">
+                      <span className="truncate text-zinc-700">{entry.category}</span>
+                      <span className="truncate text-zinc-700">
                         {getFriendName(notebook, entry.paidByFriendId)}
                       </span>
                       <span className="font-semibold text-zinc-950">
