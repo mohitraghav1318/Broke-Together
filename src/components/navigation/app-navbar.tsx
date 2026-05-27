@@ -8,6 +8,7 @@ import { firebaseAuth } from "@/firebase/firebase-client";
 
 const navLinks = [
   { href: "/", label: "Home" },
+  { href: "/notebooks", label: "Notebooks", authOnly: true },
   { href: "/help", label: "Help" },
   { href: "/login", label: "Sign in" },
 ];
@@ -30,7 +31,13 @@ export function AppNavbar() {
     closeMenu();
   }
 
-  const visibleLinks = user ? navLinks.slice(0, 2) : navLinks;
+  const visibleLinks = navLinks.filter((link) => {
+    if (link.authOnly) {
+      return Boolean(user);
+    }
+
+    return user ? link.href !== "/login" : true;
+  });
 
   return (
     <header className="sticky top-0 z-20 border-b border-zinc-200 bg-white/95 backdrop-blur">

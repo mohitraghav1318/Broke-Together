@@ -64,9 +64,9 @@ export function UserSessionPanel() {
       <div className="grid gap-3 sm:grid-cols-2">
         <Link
           className="inline-flex h-11 items-center justify-center rounded-md border border-transparent bg-emerald-600 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700"
-          href={`/${user.uid}`}
+          href="/notebooks"
         >
-          My account
+          Open notebooks
         </Link>
         <AppButton variant="secondary" onClick={() => signOut(firebaseAuth)}>
           Sign out
