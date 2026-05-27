@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { AppNavbar } from "@/components/navigation/app-navbar";
 import { HelpPageContent } from "@/features/help/components/help-page-content";
+import { SiteFooter } from "@/features/marketing/components/site-footer";
 
 export const metadata: Metadata = {
   title: "Help | Broke Together",
@@ -29,6 +30,7 @@ export default function HelpPage() {
           <HelpPageContent />
         </div>
       </main>
+      <SiteFooter />
     </>
   );
 }
