@@ -386,16 +386,15 @@ export function NotebookReport({ notebookId }: NotebookReportProps) {
   async function handleDownloadReport() {
     setIsDownloading(true);
     try {
-      // @ts-expect-error No type definitions for html2pdf.js available out of the box
       const html2pdf = (await import("html2pdf.js")).default;
       const element = document.getElementById("report-container");
       if (element) {
         const opt = {
-          margin: [0.5, 0.5, 0.5, 0.5],
+          margin: [0.5, 0.5, 0.5, 0.5] as [number, number, number, number],
           filename: `${notebook?.name || "notebook"}-report.pdf`,
-          image: { type: "jpeg", quality: 0.98 },
+          image: { type: "jpeg" as const, quality: 0.98 },
           html2canvas: { scale: 2, useCORS: true },
-          jsPDF: { unit: "in", format: "letter", orientation: "portrait" },
+          jsPDF: { unit: "in" as const, format: "letter" as const, orientation: "portrait" as const },
         };
         await html2pdf().set(opt).from(element).save();
       }
