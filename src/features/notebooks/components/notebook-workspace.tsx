@@ -52,6 +52,7 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
   const [description, setDescription] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     return onAuthStateChanged(firebaseAuth, async (currentUser) => {
@@ -106,6 +107,13 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
 
   const isMember = Boolean(user && notebook?.memberIds.includes(user.uid));
   const notebookCategories = notebook ? getNotebookCategories(notebook) : [];
+
+  const itemsPerPage = 7;
+  const totalPages = Math.max(1, Math.ceil(entries.length / itemsPerPage));
+  const paginatedEntries = entries.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage,
+  );
 
   function isFriendUsed(friendId: string) {
     return entries.some(
@@ -640,7 +648,7 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
                   <span className="hidden sm:block">Amount</span>
                 </div>
                 <div className="divide-y divide-zinc-200">
-                  {entries.map((entry) => {
+                  {paginatedEntries.map((entry) => {
                     const payer = notebook.friends.find(
                       (friend) => friend.id === entry.paidByFriendId,
                     );
@@ -670,6 +678,40 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
                     );
                   })}
                 </div>
+                {totalPages > 1 && (
+                  <div className="flex flex-wrap items-center justify-between gap-4 border-t border-zinc-200 bg-white px-4 py-3 sm:px-6">
+                    <p className="text-sm text-zinc-700">
+                      Showing{" "}
+                      <span className="font-medium">
+                        {(currentPage - 1) * itemsPerPage + 1}
+                      </span>{" "}
+                      to{" "}
+                      <span className="font-medium">
+                        {Math.min(currentPage * itemsPerPage, entries.length)}
+                      </span>{" "}
+                      of <span className="font-medium">{entries.length}</span>{" "}
+                      entries
+                    </p>
+                    <div className="flex gap-2">
+                      <AppButton
+                        disabled={currentPage === 1}
+                        onClick={() => setCurrentPage((p) => p - 1)}
+                        type="button"
+                        variant="secondary"
+                      >
+                        Previous
+                      </AppButton>
+                      <AppButton
+                        disabled={currentPage === totalPages}
+                        onClick={() => setCurrentPage((p) => p + 1)}
+                        type="button"
+                        variant="secondary"
+                      >
+                        Next
+                      </AppButton>
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <p className="rounded-md border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-600">

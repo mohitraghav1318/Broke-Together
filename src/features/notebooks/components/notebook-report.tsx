@@ -319,6 +319,7 @@ export function NotebookReport({ notebookId }: NotebookReportProps) {
   const [errorMessage, setErrorMessage] = useState("");
   const [isClearing, setIsClearing] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     return onAuthStateChanged(firebaseAuth, async (currentUser) => {
@@ -362,6 +363,13 @@ export function NotebookReport({ notebookId }: NotebookReportProps) {
   const averageEntry = entries.length ? totalExpense / entries.length : 0;
   const isNotebookOwner = Boolean(user && notebook?.ownerUid === user.uid);
 
+  const itemsPerPage = 7;
+  const totalPages = Math.max(1, Math.ceil(entries.length / itemsPerPage));
+  const paginatedEntries = entries.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage,
+  );
+
   async function handleClearEntries() {
     if (
       !window.confirm(
@@ -386,17 +394,25 @@ export function NotebookReport({ notebookId }: NotebookReportProps) {
   async function handleDownloadReport() {
     setIsDownloading(true);
     try {
-      const html2pdf = (await import("html2pdf.js")).default;
+      const html2canvas = (await import("html2canvas-pro")).default;
+      const { jsPDF } = await import("jspdf");
       const element = document.getElementById("report-container");
+      
       if (element) {
-        const opt = {
-          margin: [0.5, 0.5, 0.5, 0.5] as [number, number, number, number],
-          filename: `${notebook?.name || "notebook"}-report.pdf`,
-          image: { type: "jpeg" as const, quality: 0.98 },
-          html2canvas: { scale: 2, useCORS: true },
-          jsPDF: { unit: "in" as const, format: "letter" as const, orientation: "portrait" as const },
-        };
-        await html2pdf().set(opt).from(element).save();
+        const canvas = await html2canvas(element, { scale: 2, useCORS: true });
+        const imgData = canvas.toDataURL("image/jpeg", 0.98);
+        const pdf = new jsPDF({ unit: "in", format: "letter", orientation: "portrait" });
+        
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+        
+        // Add 0.5 inch margins
+        const margin = 0.5;
+        const availableWidth = pdfWidth - margin * 2;
+        const finalHeight = (canvas.height * availableWidth) / canvas.width;
+        
+        pdf.addImage(imgData, "JPEG", margin, margin, availableWidth, finalHeight);
+        pdf.save(`${notebook?.name || "notebook"}-report.pdf`);
       }
     } catch (error) {
       setErrorMessage("Failed to download PDF report. Try again later.");
@@ -692,7 +708,7 @@ export function NotebookReport({ notebookId }: NotebookReportProps) {
                   <span>Amount</span>
                 </div>
                 <div className="divide-y divide-zinc-200">
-                  {entries.map((entry) => (
+                  {paginatedEntries.map((entry) => (
                     <div
                       className="grid grid-cols-[90px_1fr_100px_100px_100px] gap-2 px-3 py-3 text-xs sm:grid-cols-[120px_1fr_130px_130px_130px] sm:gap-3 sm:px-4 sm:py-4 sm:text-sm"
                       key={entry.id}
@@ -717,6 +733,40 @@ export function NotebookReport({ notebookId }: NotebookReportProps) {
                     </div>
                   ))}
                 </div>
+                {totalPages > 1 && (
+                  <div className="flex flex-wrap items-center justify-between gap-4 border-t border-zinc-200 bg-white px-4 py-3 sm:px-6">
+                    <p className="text-sm text-zinc-700">
+                      Showing{" "}
+                      <span className="font-medium">
+                        {(currentPage - 1) * itemsPerPage + 1}
+                      </span>{" "}
+                      to{" "}
+                      <span className="font-medium">
+                        {Math.min(currentPage * itemsPerPage, entries.length)}
+                      </span>{" "}
+                      of <span className="font-medium">{entries.length}</span>{" "}
+                      entries
+                    </p>
+                    <div className="flex gap-2">
+                      <AppButton
+                        disabled={currentPage === 1}
+                        onClick={() => setCurrentPage((p) => p - 1)}
+                        type="button"
+                        variant="secondary"
+                      >
+                        Previous
+                      </AppButton>
+                      <AppButton
+                        disabled={currentPage === totalPages}
+                        onClick={() => setCurrentPage((p) => p + 1)}
+                        type="button"
+                        variant="secondary"
+                      >
+                        Next
+                      </AppButton>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           ) : (
