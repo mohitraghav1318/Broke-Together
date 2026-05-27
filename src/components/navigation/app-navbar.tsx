@@ -1,10 +1,14 @@
 "use client";
 
-import { onAuthStateChanged, signOut, type User } from "firebase/auth";
+import { onAuthStateChanged, type User } from "firebase/auth";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { firebaseAuth } from "@/firebase/firebase-client";
+import {
+  enforceAuthSession,
+  signOutAndClearSession,
+} from "@/features/auth/lib/auth-session";
 
 const navLinks = [
   { href: "/", label: "Home" },
@@ -19,7 +23,9 @@ export function AppNavbar() {
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
-    return onAuthStateChanged(firebaseAuth, setUser);
+    return onAuthStateChanged(firebaseAuth, async (currentUser) => {
+      setUser(await enforceAuthSession(currentUser));
+    });
   }, []);
 
   function closeMenu() {
@@ -27,7 +33,7 @@ export function AppNavbar() {
   }
 
   async function handleSignOut() {
-    await signOut(firebaseAuth);
+    await signOutAndClearSession();
     closeMenu();
   }
 

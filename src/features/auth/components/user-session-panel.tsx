@@ -1,20 +1,24 @@
 "use client";
 
-import { onAuthStateChanged, signOut, type User } from "firebase/auth";
+import { onAuthStateChanged, type User } from "firebase/auth";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AppButton } from "@/components/ui/app-button";
 import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
 import { SurfaceCard } from "@/components/ui/surface-card";
 import { firebaseAuth } from "@/firebase/firebase-client";
+import {
+  enforceAuthSession,
+  signOutAndClearSession,
+} from "@/features/auth/lib/auth-session";
 
 export function UserSessionPanel() {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    return onAuthStateChanged(firebaseAuth, (currentUser) => {
-      setUser(currentUser);
+    return onAuthStateChanged(firebaseAuth, async (currentUser) => {
+      setUser(await enforceAuthSession(currentUser));
       setIsLoading(false);
     });
   }, []);
@@ -68,7 +72,7 @@ export function UserSessionPanel() {
         >
           Open notebooks
         </Link>
-        <AppButton variant="secondary" onClick={() => signOut(firebaseAuth)}>
+        <AppButton variant="secondary" onClick={signOutAndClearSession}>
           Sign out
         </AppButton>
       </div>

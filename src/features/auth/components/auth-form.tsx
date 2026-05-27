@@ -16,6 +16,10 @@ import { InlineAlert } from "@/components/ui/inline-alert";
 import { TextInput } from "@/components/ui/text-input";
 import { firebaseAuth } from "@/firebase/firebase-client";
 import { ensureUserProfile } from "@/features/account/lib/user-profile";
+import {
+  ensurePersistentAuth,
+  markAuthSessionActive,
+} from "@/features/auth/lib/auth-session";
 import { getFriendlyAuthError } from "@/features/auth/lib/firebase-auth-errors";
 
 type AuthFormProps = {
@@ -45,6 +49,8 @@ export function AuthForm({ mode }: AuthFormProps) {
     setIsSubmitting(true);
 
     try {
+      await ensurePersistentAuth();
+
       if (isSignup) {
         const credential = await createUserWithEmailAndPassword(
           firebaseAuth,
@@ -59,6 +65,7 @@ export function AuthForm({ mode }: AuthFormProps) {
         }
 
         await ensureUserProfile(credential.user);
+        markAuthSessionActive();
         completeAuth(
           "Account created. You are signed in now.",
           `/${credential.user.uid}`,
@@ -70,6 +77,7 @@ export function AuthForm({ mode }: AuthFormProps) {
           password,
         );
         await ensureUserProfile(credential.user);
+        markAuthSessionActive();
         completeAuth("Welcome back. You are signed in now.");
       }
     } catch (error) {
@@ -89,9 +97,12 @@ export function AuthForm({ mode }: AuthFormProps) {
     setIsSubmitting(true);
 
     try {
+      await ensurePersistentAuth();
+
       const provider = new GoogleAuthProvider();
       const credential = await signInWithPopup(firebaseAuth, provider);
       await ensureUserProfile(credential.user);
+      markAuthSessionActive();
       completeAuth("You are signed in with Google.", `/${credential.user.uid}`);
     } catch (error) {
       if (error instanceof FirebaseError) {

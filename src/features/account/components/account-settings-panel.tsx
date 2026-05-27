@@ -15,6 +15,7 @@ import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
 import { SurfaceCard } from "@/components/ui/surface-card";
 import { TextInput } from "@/components/ui/text-input";
 import { firebaseAuth } from "@/firebase/firebase-client";
+import { enforceAuthSession } from "@/features/auth/lib/auth-session";
 import {
   deleteUserProfile,
   ensureUserProfile,
@@ -41,16 +42,18 @@ export function AccountSettingsPanel({ userId }: AccountSettingsPanelProps) {
 
   useEffect(() => {
     return onAuthStateChanged(firebaseAuth, async (user) => {
-      setCurrentUser(user);
+      const activeUser = await enforceAuthSession(user);
+
+      setCurrentUser(activeUser);
       setErrorMessage("");
 
-      if (!user || user.uid !== userId) {
+      if (!activeUser || activeUser.uid !== userId) {
         setIsLoading(false);
         return;
       }
 
       try {
-        const nextProfile = await ensureUserProfile(user);
+        const nextProfile = await ensureUserProfile(activeUser);
         setProfile(nextProfile);
         setDisplayName(nextProfile.displayName);
         setUsername(nextProfile.username);

@@ -27,6 +27,7 @@ service cloud.firestore {
           "ownerUid",
           "memberIds",
           "friends",
+          "categories",
           "createdAt",
           "updatedAt"
         ]);
@@ -53,6 +54,7 @@ service cloud.firestore {
           "ownerUid",
           "memberIds",
           "friends",
+          "categories",
           "createdAt",
           "updatedAt"
         ]);

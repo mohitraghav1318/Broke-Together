@@ -10,6 +10,7 @@ import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
 import { SurfaceCard } from "@/components/ui/surface-card";
 import { TextInput } from "@/components/ui/text-input";
 import { firebaseAuth } from "@/firebase/firebase-client";
+import { enforceAuthSession } from "@/features/auth/lib/auth-session";
 import {
   createNotebook,
   getNotebookErrorMessage,
@@ -27,9 +28,11 @@ export function NotebooksDashboard() {
   const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
-    return onAuthStateChanged(firebaseAuth, (currentUser) => {
-      setUser(currentUser);
-      if (!currentUser) {
+    return onAuthStateChanged(firebaseAuth, async (currentUser) => {
+      const activeUser = await enforceAuthSession(currentUser);
+
+      setUser(activeUser);
+      if (!activeUser) {
         setNotebooks([]);
       }
       setIsAuthLoading(false);

@@ -32,6 +32,7 @@ export type HisabaNotebook = {
   ownerUid: string;
   memberIds: string[];
   friends: NotebookFriend[];
+  categories: string[];
   createdAt: Timestamp | null;
   updatedAt: Timestamp | null;
 };
@@ -68,6 +69,13 @@ class EmptyFriendNameError extends Error {
   }
 }
 
+class EmptyCategoryNameError extends Error {
+  constructor() {
+    super("Add a category name first.");
+    this.name = "EmptyCategoryNameError";
+  }
+}
+
 class InvalidEntryError extends Error {
   constructor(message: string) {
     super(message);
@@ -75,12 +83,26 @@ class InvalidEntryError extends Error {
   }
 }
 
+export const defaultNotebookCategories = [
+  "Food",
+  "Travel",
+  "Stay",
+  "Groceries",
+  "Bills",
+  "Shopping",
+  "Other",
+];
+
 function createId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return crypto.randomUUID();
   }
 
   return Math.random().toString(36).slice(2);
+}
+
+function normalizeCategory(value: string) {
+  return value.trim().replace(/\s+/g, " ");
 }
 
 function getUserName(user: User) {
@@ -98,9 +120,16 @@ function notebookFromSnapshot(
     ownerUid: String(data.ownerUid || ""),
     memberIds: Array.isArray(data.memberIds) ? data.memberIds : [],
     friends: Array.isArray(data.friends) ? data.friends : [],
+    categories: Array.isArray(data.categories)
+      ? data.categories
+      : defaultNotebookCategories,
     createdAt: data.createdAt || null,
     updatedAt: data.updatedAt || null,
   };
+}
+
+export function getNotebookCategories(notebook: Pick<HisabaNotebook, "categories">) {
+  return notebook.categories.length ? notebook.categories : defaultNotebookCategories;
 }
 
 function entryFromSnapshot(
@@ -207,6 +236,7 @@ export async function createNotebook(user: User, name: string) {
     ownerUid: user.uid,
     memberIds: [user.uid],
     friends: [ownerFriend],
+    categories: defaultNotebookCategories,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
@@ -246,8 +276,24 @@ export async function joinNotebook(notebookId: string, user: User) {
         ? memberIds
         : [...memberIds, user.uid],
       friends: nextFriends,
+      categories: Array.isArray(data.categories)
+        ? data.categories
+        : defaultNotebookCategories,
       updatedAt: serverTimestamp(),
     });
+  });
+}
+
+export async function updateNotebookName(notebookId: string, name: string) {
+  const trimmedName = name.trim();
+
+  if (!trimmedName) {
+    throw new EmptyNotebookNameError();
+  }
+
+  await updateDoc(doc(firebaseDb, "notebooks", notebookId), {
+    name: trimmedName,
+    updatedAt: serverTimestamp(),
   });
 }
 
@@ -282,6 +328,103 @@ export async function addNotebookFriend(notebookId: string, name: string) {
   });
 }
 
+export async function removeNotebookFriend(
+  notebookId: string,
+  friendId: string,
+) {
+  const notebookRef = doc(firebaseDb, "notebooks", notebookId);
+  const notebook = await getDoc(notebookRef);
+
+  if (!notebook.exists()) {
+    throw new Error("Notebook not found.");
+  }
+
+  const data = notebook.data();
+  const friends = Array.isArray(data.friends) ? data.friends : [];
+  const nextFriends = friends.filter(
+    (friend: NotebookFriend) => friend.id !== friendId,
+  );
+
+  if (nextFriends.length === friends.length) {
+    return;
+  }
+
+  if (nextFriends.length === 0) {
+    throw new InvalidEntryError("A notebook needs at least one friend.");
+  }
+
+  await updateDoc(notebookRef, {
+    friends: nextFriends,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function addNotebookCategory(
+  notebookId: string,
+  category: string,
+) {
+  const nextCategory = normalizeCategory(category);
+
+  if (!nextCategory) {
+    throw new EmptyCategoryNameError();
+  }
+
+  const notebookRef = doc(firebaseDb, "notebooks", notebookId);
+  const notebook = await getDoc(notebookRef);
+
+  if (!notebook.exists()) {
+    throw new Error("Notebook not found.");
+  }
+
+  const data = notebook.data();
+  const categories = Array.isArray(data.categories)
+    ? data.categories
+    : defaultNotebookCategories;
+  const exists = categories.some(
+    (item: string) => item.toLowerCase() === nextCategory.toLowerCase(),
+  );
+
+  if (exists) {
+    return;
+  }
+
+  await updateDoc(notebookRef, {
+    categories: [...categories, nextCategory],
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function removeNotebookCategory(
+  notebookId: string,
+  category: string,
+) {
+  const notebookRef = doc(firebaseDb, "notebooks", notebookId);
+  const notebook = await getDoc(notebookRef);
+
+  if (!notebook.exists()) {
+    throw new Error("Notebook not found.");
+  }
+
+  const data = notebook.data();
+  const categories = Array.isArray(data.categories)
+    ? data.categories
+    : defaultNotebookCategories;
+  const nextCategories = categories.filter((item: string) => item !== category);
+
+  if (nextCategories.length === categories.length) {
+    return;
+  }
+
+  if (nextCategories.length === 0) {
+    throw new InvalidEntryError("A notebook needs at least one category.");
+  }
+
+  await updateDoc(notebookRef, {
+    categories: nextCategories,
+    updatedAt: serverTimestamp(),
+  });
+}
+
 export async function addNotebookEntry(
   notebookId: string,
   user: User,
@@ -290,7 +433,7 @@ export async function addNotebookEntry(
   },
 ) {
   const amount = Number(entry.amount);
-  const category = entry.category.trim() || "General";
+  const category = normalizeCategory(entry.category) || "General";
 
   if (!Number.isFinite(amount) || amount <= 0) {
     throw new InvalidEntryError("Add a valid paid amount.");
@@ -309,6 +452,9 @@ export async function addNotebookEntry(
 
   const data = notebook.data();
   const friends = Array.isArray(data.friends) ? data.friends : [];
+  const categories = Array.isArray(data.categories)
+    ? data.categories
+    : defaultNotebookCategories;
   const splitFriendIds = friends.map((friend: NotebookFriend) => friend.id);
 
   if (splitFriendIds.length === 0) {
@@ -317,6 +463,10 @@ export async function addNotebookEntry(
 
   if (!splitFriendIds.includes(entry.paidByFriendId)) {
     throw new InvalidEntryError("Choose a friend from this notebook.");
+  }
+
+  if (!categories.includes(category)) {
+    throw new InvalidEntryError("Choose a category from this notebook.");
   }
 
   await addDoc(collection(firebaseDb, "notebooks", notebookId, "entries"), {
@@ -419,8 +569,8 @@ export function calculateSettlements(
 }
 
 export function formatMoney(amount: number) {
-  return new Intl.NumberFormat("en-US", {
-    currency: "USD",
+  return new Intl.NumberFormat("en-IN", {
+    currency: "INR",
     style: "currency",
   }).format(amount);
 }
@@ -429,6 +579,7 @@ export function getNotebookErrorMessage(error: unknown) {
   if (
     error instanceof EmptyNotebookNameError ||
     error instanceof EmptyFriendNameError ||
+    error instanceof EmptyCategoryNameError ||
     error instanceof InvalidEntryError
   ) {
     return error.message;

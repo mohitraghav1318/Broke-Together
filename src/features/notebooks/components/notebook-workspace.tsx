@@ -2,35 +2,30 @@
 
 import { onAuthStateChanged, type User } from "firebase/auth";
 import Link from "next/link";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { AppButton } from "@/components/ui/app-button";
 import { InlineAlert } from "@/components/ui/inline-alert";
 import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
 import { SurfaceCard } from "@/components/ui/surface-card";
 import { TextInput } from "@/components/ui/text-input";
 import { firebaseAuth } from "@/firebase/firebase-client";
+import { enforceAuthSession } from "@/features/auth/lib/auth-session";
 import {
   addNotebookEntry,
+  addNotebookCategory,
   addNotebookFriend,
-  calculateSettlements,
   formatMoney,
+  getNotebookCategories,
   getNotebookErrorMessage,
   joinNotebook,
+  removeNotebookCategory,
+  removeNotebookFriend,
   subscribeNotebook,
   subscribeNotebookEntries,
+  updateNotebookName,
   type HisabaNotebook,
   type NotebookEntry,
 } from "@/features/notebooks/lib/hisaba-notebooks";
-
-const categories = [
-  "Food",
-  "Travel",
-  "Stay",
-  "Groceries",
-  "Bills",
-  "Shopping",
-  "Other",
-];
 
 type NotebookWorkspaceProps = {
   notebookId: string;
@@ -44,19 +39,23 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
   const [isNotebookLoading, setIsNotebookLoading] = useState(true);
   const [isJoining, setIsJoining] = useState(false);
   const [isSavingFriend, setIsSavingFriend] = useState(false);
+  const [isSavingName, setIsSavingName] = useState(false);
+  const [isSavingCategory, setIsSavingCategory] = useState(false);
   const [isSavingEntry, setIsSavingEntry] = useState(false);
+  const [isEditingNotebook, setIsEditingNotebook] = useState(false);
+  const [notebookName, setNotebookName] = useState("");
   const [friendName, setFriendName] = useState("");
+  const [categoryName, setCategoryName] = useState("");
   const [amount, setAmount] = useState("");
   const [paidByFriendId, setPaidByFriendId] = useState("");
-  const [category, setCategory] = useState(categories[0]);
+  const [category, setCategory] = useState("");
   const [description, setDescription] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
-  const [isReportVisible, setIsReportVisible] = useState(false);
 
   useEffect(() => {
-    return onAuthStateChanged(firebaseAuth, (currentUser) => {
-      setUser(currentUser);
+    return onAuthStateChanged(firebaseAuth, async (currentUser) => {
+      setUser(await enforceAuthSession(currentUser));
       setIsAuthLoading(false);
     });
   }, []);
@@ -66,6 +65,7 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
       notebookId,
       (nextNotebook) => {
         setNotebook(nextNotebook);
+        setNotebookName(nextNotebook?.name || "");
         setPaidByFriendId((current) => {
           if (
             current &&
@@ -75,6 +75,15 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
           }
 
           return nextNotebook?.friends[0]?.id || "";
+        });
+        setCategory((current) => {
+          const nextCategories = nextNotebook
+            ? getNotebookCategories(nextNotebook)
+            : [];
+
+          return current && nextCategories.includes(current)
+            ? current
+            : nextCategories[0] || "";
         });
         setIsNotebookLoading(false);
       },
@@ -98,9 +107,19 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
   }, [notebook?.memberIds, notebookId, user]);
 
   const isMember = Boolean(user && notebook?.memberIds.includes(user.uid));
-  const settlements = useMemo(() => {
-    return calculateSettlements(notebook?.friends || [], entries);
-  }, [entries, notebook?.friends]);
+  const notebookCategories = notebook ? getNotebookCategories(notebook) : [];
+
+  function isFriendUsed(friendId: string) {
+    return entries.some(
+      (entry) =>
+        entry.paidByFriendId === friendId ||
+        entry.splitFriendIds.includes(friendId),
+    );
+  }
+
+  function isCategoryUsed(nextCategory: string) {
+    return entries.some((entry) => entry.category === nextCategory);
+  }
 
   async function handleJoinNotebook() {
     if (!user) {
@@ -135,6 +154,22 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
     }
   }
 
+  async function handleSaveNotebookName(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIsSavingName(true);
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    try {
+      await updateNotebookName(notebookId, notebookName);
+      setSuccessMessage("Notebook name updated.");
+    } catch (error) {
+      setErrorMessage(getNotebookErrorMessage(error));
+    } finally {
+      setIsSavingName(false);
+    }
+  }
+
   async function handleAddFriend(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsSavingFriend(true);
@@ -149,6 +184,53 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
       setErrorMessage(getNotebookErrorMessage(error));
     } finally {
       setIsSavingFriend(false);
+    }
+  }
+
+  async function handleRemoveFriend(friendId: string) {
+    setIsSavingFriend(true);
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    try {
+      await removeNotebookFriend(notebookId, friendId);
+      setSuccessMessage("Friend removed.");
+    } catch (error) {
+      setErrorMessage(getNotebookErrorMessage(error));
+    } finally {
+      setIsSavingFriend(false);
+    }
+  }
+
+  async function handleAddCategory(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIsSavingCategory(true);
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    try {
+      await addNotebookCategory(notebookId, categoryName);
+      setCategoryName("");
+      setSuccessMessage("Category added.");
+    } catch (error) {
+      setErrorMessage(getNotebookErrorMessage(error));
+    } finally {
+      setIsSavingCategory(false);
+    }
+  }
+
+  async function handleRemoveCategory(nextCategory: string) {
+    setIsSavingCategory(true);
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    try {
+      await removeNotebookCategory(notebookId, nextCategory);
+      setSuccessMessage("Category removed.");
+    } catch (error) {
+      setErrorMessage(getNotebookErrorMessage(error));
+    } finally {
+      setIsSavingCategory(false);
     }
   }
 
@@ -269,6 +351,12 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
             <AppButton onClick={handleCopyLink} variant="secondary">
               Copy share link
             </AppButton>
+            <AppButton
+              onClick={() => setIsEditingNotebook((current) => !current)}
+              variant="secondary"
+            >
+              {isEditingNotebook ? "Close edit" : "Edit notebook"}
+            </AppButton>
           </div>
         </div>
 
@@ -289,27 +377,149 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
         ) : null}
       </section>
 
+      {isEditingNotebook ? (
+        <SurfaceCard className="grid gap-6">
+          <div>
+            <h2 className="text-xl font-semibold text-zinc-950">
+              Edit notebook
+            </h2>
+            <p className="mt-1 text-sm leading-6 text-zinc-600">
+              Update the notebook name, friends, and entry categories.
+            </p>
+          </div>
+
+          <form className="grid gap-4" onSubmit={handleSaveNotebookName}>
+            <TextInput
+              id="edit-notebook-name"
+              label="Notebook name"
+              onChange={(event) => setNotebookName(event.target.value)}
+              placeholder="Notebook name"
+              type="text"
+              value={notebookName}
+            />
+            <AppButton
+              className="w-full sm:w-fit"
+              disabled={isSavingName}
+              type="submit"
+            >
+              {isSavingName ? "Saving..." : "Save name"}
+            </AppButton>
+          </form>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="grid gap-4">
+              <form className="grid gap-4" onSubmit={handleAddFriend}>
+                <TextInput
+                  id="edit-friend-name"
+                  label="Add friend"
+                  onChange={(event) => setFriendName(event.target.value)}
+                  placeholder="Aarav, Maya, Jordan"
+                  type="text"
+                  value={friendName}
+                />
+                <AppButton
+                  className="w-full sm:w-fit"
+                  disabled={isSavingFriend}
+                  type="submit"
+                >
+                  {isSavingFriend ? "Saving..." : "Add friend"}
+                </AppButton>
+              </form>
+
+              <div className="overflow-hidden rounded-lg border border-zinc-200">
+                <div className="bg-zinc-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                  Friends
+                </div>
+                <div className="divide-y divide-zinc-200">
+                  {notebook.friends.map((friend) => {
+                    const isUsed = isFriendUsed(friend.id);
+
+                    return (
+                      <div
+                        className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm"
+                        key={friend.id}
+                      >
+                        <span className="font-medium text-zinc-950">
+                          {friend.name}
+                        </span>
+                        <AppButton
+                          className="h-9 px-3"
+                          disabled={
+                            isSavingFriend ||
+                            isUsed ||
+                            notebook.friends.length === 1
+                          }
+                          onClick={() => handleRemoveFriend(friend.id)}
+                          variant="danger"
+                        >
+                          Remove
+                        </AppButton>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-4">
+              <form className="grid gap-4" onSubmit={handleAddCategory}>
+                <TextInput
+                  id="edit-category-name"
+                  label="Add category"
+                  onChange={(event) => setCategoryName(event.target.value)}
+                  placeholder="Fuel, Movies, Snacks"
+                  type="text"
+                  value={categoryName}
+                />
+                <AppButton
+                  className="w-full sm:w-fit"
+                  disabled={isSavingCategory}
+                  type="submit"
+                >
+                  {isSavingCategory ? "Saving..." : "Add category"}
+                </AppButton>
+              </form>
+
+              <div className="overflow-hidden rounded-lg border border-zinc-200">
+                <div className="bg-zinc-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                  Categories
+                </div>
+                <div className="divide-y divide-zinc-200">
+                  {notebookCategories.map((item) => {
+                    const isUsed = isCategoryUsed(item);
+
+                    return (
+                      <div
+                        className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm"
+                        key={item}
+                      >
+                        <span className="font-medium text-zinc-950">
+                          {item}
+                        </span>
+                        <AppButton
+                          className="h-9 px-3"
+                          disabled={
+                            isSavingCategory ||
+                            isUsed ||
+                            notebookCategories.length === 1
+                          }
+                          onClick={() => handleRemoveCategory(item)}
+                          variant="danger"
+                        >
+                          Remove
+                        </AppButton>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+        </SurfaceCard>
+      ) : null}
+
       <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
         <div className="grid gap-6 self-start">
-          <SurfaceCard>
-            <h2 className="mb-4 text-xl font-semibold text-zinc-950">
-              Add friend
-            </h2>
-            <form className="grid gap-4" onSubmit={handleAddFriend}>
-              <TextInput
-                id="friend-name"
-                label="Friend name"
-                onChange={(event) => setFriendName(event.target.value)}
-                placeholder="Aarav, Maya, Jordan"
-                type="text"
-                value={friendName}
-              />
-              <AppButton disabled={isSavingFriend} type="submit">
-                {isSavingFriend ? "Adding..." : "Add friend"}
-              </AppButton>
-            </form>
-          </SurfaceCard>
-
           <SurfaceCard>
             <h2 className="mb-4 text-xl font-semibold text-zinc-950">
               Add entry
@@ -356,7 +566,7 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
                   onChange={(event) => setCategory(event.target.value)}
                   value={category}
                 >
-                  {categories.map((item) => (
+                  {notebookCategories.map((item) => (
                     <option key={item} value={item}>
                       {item}
                     </option>
@@ -397,38 +607,17 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
                   {notebook.friends.length === 1 ? "friend" : "friends"}.
                 </p>
               </div>
-              <AppButton onClick={() => setIsReportVisible(true)}>
+              <Link
+                className="inline-flex h-11 items-center justify-center rounded-md border border-transparent bg-emerald-600 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700"
+                href={`/notebooks/${notebookId}/report`}
+              >
                 Generate report
-              </AppButton>
+              </Link>
             </div>
-
-            {isReportVisible ? (
-              settlements.length ? (
-                <div className="grid gap-3">
-                  {settlements.map((settlement) => (
-                    <div
-                      className="rounded-md border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-800"
-                      key={`${settlement.from}-${settlement.to}-${settlement.amount}`}
-                    >
-                      <span className="font-semibold">{settlement.from}</span>{" "}
-                      needs to pay{" "}
-                      <span className="font-semibold">
-                        {formatMoney(settlement.amount)}
-                      </span>{" "}
-                      to <span className="font-semibold">{settlement.to}</span>.
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="rounded-md border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-600">
-                  Everyone is settled.
-                </p>
-              )
-            ) : (
-              <p className="rounded-md border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-600">
-                Generate the report when entries are ready.
-              </p>
-            )}
+            <p className="rounded-md border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-600">
+              Open a full report with settlement table, timeline graph, pie
+              chart, and category review.
+            </p>
           </SurfaceCard>
 
           <SurfaceCard>
