@@ -469,7 +469,7 @@ export function NotebookReport({ notebookId }: NotebookReportProps) {
 
   return (
     <div className="grid gap-6">
-      <section className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm sm:p-6">
+      <section className="min-w-0 rounded-lg border border-zinc-200 bg-white p-4 shadow-sm sm:p-6">
         <div className="grid gap-4 sm:flex sm:flex-wrap sm:items-start sm:justify-between">
           <div>
             <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">
@@ -515,8 +515,8 @@ export function NotebookReport({ notebookId }: NotebookReportProps) {
         <InlineAlert tone="error">{errorMessage}</InlineAlert>
       ) : null}
 
-      <div id="report-container" className="grid gap-6 bg-stone-50 pb-4">
-        <section className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+      <div id="report-container" className="grid min-w-0 gap-6 bg-stone-50 pb-4">
+        <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
           <SurfaceCard>
             <p className="text-sm font-medium text-zinc-600">Total expense</p>
             <p className="mt-2 text-2xl font-semibold text-zinc-950">
@@ -543,7 +543,7 @@ export function NotebookReport({ notebookId }: NotebookReportProps) {
           </SurfaceCard>
         </section>
 
-        <div className="grid gap-4 sm:gap-6 lg:grid-cols-[1fr_420px]">
+        <div className="grid min-w-0 gap-4 sm:gap-6 lg:grid-cols-[1fr_420px]">
           <SurfaceCard>
             <div className="mb-5">
               <h2 className="text-xl font-semibold text-zinc-950">
@@ -569,7 +569,7 @@ export function NotebookReport({ notebookId }: NotebookReportProps) {
           </SurfaceCard>
         </div>
 
-        <div className="grid gap-4 sm:gap-6 lg:grid-cols-[1fr_1fr]">
+        <div className="grid min-w-0 gap-4 sm:gap-6 lg:grid-cols-[1fr_1fr]">
           <SurfaceCard>
             <div className="mb-5">
               <h2 className="text-xl font-semibold text-zinc-950">
