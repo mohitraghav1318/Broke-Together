@@ -7,7 +7,10 @@ export function SiteFooter() {
     <footer className="border-t border-emerald-100 bg-stone-100 px-4 py-10 text-zinc-900 sm:px-6 lg:px-8">
       <div className="mx-auto grid w-full max-w-6xl gap-8 md:grid-cols-[1fr_auto_auto]">
         <div className="max-w-md">
-          <Link className="flex items-center gap-3 text-base font-bold" href="/">
+          <Link
+            className="flex items-center gap-3 text-base font-bold"
+            href="/"
+          >
             <span className="grid size-9 place-items-center rounded-md bg-emerald-700 text-sm text-white shadow-sm">
               BT
             </span>
@@ -27,7 +30,10 @@ export function SiteFooter() {
 
         <nav className="grid gap-3 text-sm">
           <p className="font-semibold text-zinc-900">Product</p>
-          <Link className="text-zinc-600 transition-colors hover:text-emerald-800" href="/">
+          <Link
+            className="text-zinc-600 transition-colors hover:text-emerald-800"
+            href="/"
+          >
             Home
           </Link>
           <Link

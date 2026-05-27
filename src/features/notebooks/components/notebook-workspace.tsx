@@ -99,10 +99,8 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
       return;
     }
 
-    return subscribeNotebookEntries(
-      notebookId,
-      setEntries,
-      (error) => setErrorMessage(getNotebookErrorMessage(error)),
+    return subscribeNotebookEntries(notebookId, setEntries, (error) =>
+      setErrorMessage(getNotebookErrorMessage(error)),
     );
   }, [notebook?.memberIds, notebookId, user]);
 
@@ -318,7 +316,9 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
             Join this notebook to see entries and add payments with friends.
           </p>
         </div>
-        {errorMessage ? <InlineAlert tone="error">{errorMessage}</InlineAlert> : null}
+        {errorMessage ? (
+          <InlineAlert tone="error">{errorMessage}</InlineAlert>
+        ) : null}
         {successMessage ? (
           <InlineAlert tone="success">{successMessage}</InlineAlert>
         ) : null}
@@ -371,7 +371,9 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
           ))}
         </div>
 
-        {errorMessage ? <InlineAlert tone="error">{errorMessage}</InlineAlert> : null}
+        {errorMessage ? (
+          <InlineAlert tone="error">{errorMessage}</InlineAlert>
+        ) : null}
         {successMessage ? (
           <InlineAlert tone="success">{successMessage}</InlineAlert>
         ) : null}
@@ -623,9 +625,7 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
           <SurfaceCard>
             <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
               <div>
-                <h2 className="text-xl font-semibold text-zinc-950">
-                  Entries
-                </h2>
+                <h2 className="text-xl font-semibold text-zinc-950">Entries</h2>
                 <p className="mt-1 text-sm text-zinc-600">
                   {entries.length} {entries.length === 1 ? "entry" : "entries"}
                 </p>

@@ -11,7 +11,10 @@ export function TextInput({
   ...props
 }: TextInputProps) {
   return (
-    <label className="grid gap-2 text-sm font-medium text-zinc-800" htmlFor={id}>
+    <label
+      className="grid gap-2 text-sm font-medium text-zinc-800"
+      htmlFor={id}
+    >
       {label}
       <input
         className={[

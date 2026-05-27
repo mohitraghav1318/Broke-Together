@@ -7,10 +7,11 @@ import {
   signInWithEmailAndPassword,
   signInWithPopup,
   updateProfile,
+  onAuthStateChanged,
 } from "firebase/auth";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useState } from "react";
+import { FormEvent, useState, useEffect } from "react";
 import { AppButton } from "@/components/ui/app-button";
 import { InlineAlert } from "@/components/ui/inline-alert";
 import { TextInput } from "@/components/ui/text-input";
@@ -19,6 +20,7 @@ import { ensureUserProfile } from "@/features/account/lib/user-profile";
 import {
   ensurePersistentAuth,
   markAuthSessionActive,
+  enforceAuthSession,
 } from "@/features/auth/lib/auth-session";
 import { getFriendlyAuthError } from "@/features/auth/lib/firebase-auth-errors";
 
@@ -35,6 +37,16 @@ export function AuthForm({ mode }: AuthFormProps) {
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    return onAuthStateChanged(firebaseAuth, async (currentUser) => {
+      const validUser = await enforceAuthSession(currentUser);
+      if (validUser) {
+        router.push("/notebooks");
+        router.refresh();
+      }
+    });
+  }, [router]);
 
   function completeAuth(message: string, nextPath = "/") {
     setSuccessMessage(message);
@@ -171,7 +183,9 @@ export function AuthForm({ mode }: AuthFormProps) {
         value={password}
       />
 
-      {errorMessage ? <InlineAlert tone="error">{errorMessage}</InlineAlert> : null}
+      {errorMessage ? (
+        <InlineAlert tone="error">{errorMessage}</InlineAlert>
+      ) : null}
       {successMessage ? (
         <InlineAlert tone="success">{successMessage}</InlineAlert>
       ) : null}

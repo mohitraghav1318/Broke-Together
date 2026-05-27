@@ -1,4 +1,4 @@
-import type { HelpArticle } from "@/features/help/content/help-articles";
+import type { HelpArticle } from "@/features/help/content/help-categories";
 
 type HelpArticleCardProps = {
   article: HelpArticle;

@@ -11,6 +11,7 @@ import {
   serverTimestamp,
   updateDoc,
   where,
+  writeBatch,
   type DocumentSnapshot,
   type DocumentData,
   type QueryDocumentSnapshot,
@@ -110,7 +111,9 @@ function getUserName(user: User) {
 }
 
 function notebookFromSnapshot(
-  snapshot: DocumentSnapshot<DocumentData> | QueryDocumentSnapshot<DocumentData>,
+  snapshot:
+    | DocumentSnapshot<DocumentData>
+    | QueryDocumentSnapshot<DocumentData>,
 ): HisabaNotebook {
   const data = snapshot.data() || {};
 
@@ -128,8 +131,12 @@ function notebookFromSnapshot(
   };
 }
 
-export function getNotebookCategories(notebook: Pick<HisabaNotebook, "categories">) {
-  return notebook.categories.length ? notebook.categories : defaultNotebookCategories;
+export function getNotebookCategories(
+  notebook: Pick<HisabaNotebook, "categories">,
+) {
+  return notebook.categories.length
+    ? notebook.categories
+    : defaultNotebookCategories;
 }
 
 function entryFromSnapshot(
@@ -215,6 +222,26 @@ export function subscribeNotebookEntries(
     },
     onError,
   );
+}
+
+export async function clearNotebookEntries(
+  notebookId: string,
+  entries: NotebookEntry[],
+) {
+  const batch = writeBatch(firebaseDb);
+
+  for (const entry of entries) {
+    const entryRef = doc(
+      firebaseDb,
+      "notebooks",
+      notebookId,
+      "entries",
+      entry.id,
+    );
+    batch.delete(entryRef);
+  }
+
+  await batch.commit();
 }
 
 export async function createNotebook(user: User, name: string) {
@@ -458,7 +485,9 @@ export async function addNotebookEntry(
   const splitFriendIds = friends.map((friend: NotebookFriend) => friend.id);
 
   if (splitFriendIds.length === 0) {
-    throw new InvalidEntryError("Add at least one friend before adding entries.");
+    throw new InvalidEntryError(
+      "Add at least one friend before adding entries.",
+    );
   }
 
   if (!splitFriendIds.includes(entry.paidByFriendId)) {

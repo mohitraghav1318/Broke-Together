@@ -44,10 +44,8 @@ export function NotebooksDashboard() {
       return;
     }
 
-    return subscribeUserNotebooks(
-      user.uid,
-      setNotebooks,
-      (error) => setErrorMessage(getNotebookErrorMessage(error)),
+    return subscribeUserNotebooks(user.uid, setNotebooks, (error) =>
+      setErrorMessage(getNotebookErrorMessage(error)),
     );
   }, [user]);
 

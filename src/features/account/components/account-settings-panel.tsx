@@ -139,7 +139,9 @@ export function AccountSettingsPanel({ userId }: AccountSettingsPanelProps) {
   if (!currentUser) {
     return (
       <SurfaceCard className="grid gap-4">
-        <h2 className="text-xl font-semibold text-zinc-950">Sign in required</h2>
+        <h2 className="text-xl font-semibold text-zinc-950">
+          Sign in required
+        </h2>
         <p className="text-sm leading-6 text-zinc-600">
           Sign in before opening your account settings.
         </p>
@@ -227,7 +229,9 @@ export function AccountSettingsPanel({ userId }: AccountSettingsPanelProps) {
 
       <SurfaceCard className="self-start">
         <div className="grid gap-3">
-          <h2 className="text-xl font-semibold text-zinc-950">Delete account</h2>
+          <h2 className="text-xl font-semibold text-zinc-950">
+            Delete account
+          </h2>
           <p className="text-sm leading-6 text-zinc-600">
             This removes your app profile and Firebase sign-in account. Firebase
             may ask you to sign in again before deletion.
