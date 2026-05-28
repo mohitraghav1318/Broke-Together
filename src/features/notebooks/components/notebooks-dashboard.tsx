@@ -13,6 +13,7 @@ import { firebaseAuth } from "@/firebase/firebase-client";
 import { enforceAuthSession } from "@/features/auth/lib/auth-session";
 import {
   createNotebook,
+  deleteNotebook,
   getNotebookErrorMessage,
   subscribeUserNotebooks,
   type HisabaNotebook,
@@ -68,6 +69,19 @@ export function NotebooksDashboard() {
       setErrorMessage(getNotebookErrorMessage(error));
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  async function handleDeleteNotebook(notebookId: string, event: React.MouseEvent) {
+    event.preventDefault();
+
+    if (!user) return;
+    if (!window.confirm("Are you sure you want to delete this notebook? This action cannot be undone.")) return;
+
+    try {
+      await deleteNotebook(notebookId, user);
+    } catch (error) {
+      alert(getNotebookErrorMessage(error));
     }
   }
 
@@ -157,9 +171,19 @@ export function NotebooksDashboard() {
                       {notebook.friends.length === 1 ? "friend" : "friends"}
                     </p>
                   </div>
-                  <span className="rounded-md bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-700">
-                    Open
-                  </span>
+                  <div className="flex items-center gap-2">
+                    {notebook.ownerUid === user?.uid && (
+                      <button
+                        onClick={(e) => handleDeleteNotebook(notebook.id, e)}
+                        className="rounded-md border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-600 transition-colors hover:bg-red-100 hover:border-red-300"
+                      >
+                        Delete
+                      </button>
+                    )}
+                    <span className="rounded-md bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-700">
+                      Open
+                    </span>
+                  </div>
                 </div>
               </Link>
             ))}

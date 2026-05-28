@@ -3,6 +3,7 @@ import type { User } from "firebase/auth";
 import {
   addDoc,
   collection,
+  deleteDoc,
   doc,
   getDoc,
   onSnapshot,
@@ -625,4 +626,20 @@ export function getNotebookErrorMessage(error: unknown) {
   }
 
   return "Something went wrong. Please try again.";
+}
+
+export async function deleteNotebook(notebookId: string, user: User) {
+  const notebookRef = doc(firebaseDb, "notebooks", notebookId);
+  const notebook = await getDoc(notebookRef);
+
+  if (!notebook.exists()) {
+    throw new Error("Notebook not found.");
+  }
+
+  const data = notebook.data();
+  if (data.ownerUid !== user.uid) {
+    throw new Error("Only the creator can delete this notebook.");
+  }
+
+  await deleteDoc(notebookRef);
 }
