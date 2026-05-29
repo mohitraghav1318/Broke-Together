@@ -13,8 +13,14 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Broke Together",
+  title: {
+    template: "%s | Broke Together",
+    default: "Broke Together | Split Expenses Effortlessly",
+  },
   description: "Track shared expenses with friends and groups.",
+  icons: {
+    icon: "/icon.svg",
+  },
 };
 
 export default function RootLayout({
