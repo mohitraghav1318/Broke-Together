@@ -39,11 +39,15 @@ export type HisabaNotebook = {
   updatedAt: Timestamp | null;
 };
 
+export type NotebookEntryType = "expense" | "loan";
+
 export type NotebookEntry = {
   id: string;
+  entryType: NotebookEntryType;
   amount: number;
   paidByFriendId: string;
   splitFriendIds: string[];
+  loanFriendId: string | null;
   category: string;
   description: string;
   createdByUid: string;
@@ -147,11 +151,13 @@ function entryFromSnapshot(
 
   return {
     id: snapshot.id,
+    entryType: data.entryType === "loan" ? "loan" : "expense",
     amount: Number(data.amount || 0),
     paidByFriendId: String(data.paidByFriendId || ""),
     splitFriendIds: Array.isArray(data.splitFriendIds)
       ? data.splitFriendIds
       : [],
+    loanFriendId: data.loanFriendId ? String(data.loanFriendId) : null,
     category: String(data.category || "General"),
     description: String(data.description || ""),
     createdByUid: String(data.createdByUid || ""),
@@ -456,15 +462,22 @@ export async function removeNotebookCategory(
 export async function addNotebookEntry(
   notebookId: string,
   user: User,
-  entry: Pick<NotebookEntry, "amount" | "paidByFriendId" | "category"> & {
+  entry: Pick<
+    NotebookEntry,
+    "amount" | "paidByFriendId" | "category" | "entryType" | "loanFriendId"
+  > & {
     description?: string;
   },
 ) {
   const amount = Number(entry.amount);
-  const category = normalizeCategory(entry.category) || "General";
+  const entryType = entry.entryType === "loan" ? "loan" : "expense";
+  const category =
+    entryType === "loan"
+      ? "Loan"
+      : normalizeCategory(entry.category) || "General";
 
-  if (!Number.isFinite(amount) || amount <= 0) {
-    throw new InvalidEntryError("Add a valid paid amount.");
+  if (!Number.isFinite(amount) || amount <= 0 || !Number.isInteger(amount)) {
+    throw new InvalidEntryError("Add a whole-number amount.");
   }
 
   if (!entry.paidByFriendId) {
@@ -495,14 +508,30 @@ export async function addNotebookEntry(
     throw new InvalidEntryError("Choose a friend from this notebook.");
   }
 
-  if (!categories.includes(category)) {
+  if (entryType === "expense" && !categories.includes(category)) {
     throw new InvalidEntryError("Choose a category from this notebook.");
   }
 
+  if (entryType === "loan") {
+    if (!entry.loanFriendId) {
+      throw new InvalidEntryError("Choose who is borrowing the money.");
+    }
+
+    if (entry.loanFriendId === entry.paidByFriendId) {
+      throw new InvalidEntryError("Lender and borrower must be different.");
+    }
+
+    if (!splitFriendIds.includes(entry.loanFriendId)) {
+      throw new InvalidEntryError("Choose a friend from this notebook.");
+    }
+  }
+
   await addDoc(collection(firebaseDb, "notebooks", notebookId, "entries"), {
+    entryType,
     amount,
     paidByFriendId: entry.paidByFriendId,
-    splitFriendIds,
+    splitFriendIds: entryType === "loan" ? [entry.loanFriendId] : splitFriendIds,
+    loanFriendId: entryType === "loan" ? entry.loanFriendId : null,
     category,
     description: entry.description?.trim() || "",
     createdByUid: user.uid,
@@ -532,9 +561,12 @@ export function calculateSettlements(
       return;
     }
 
-    const splitFriendIds = entry.splitFriendIds.length
-      ? entry.splitFriendIds
-      : friends.map((friend) => friend.id);
+    const splitFriendIds =
+      entry.entryType === "loan" && entry.loanFriendId
+        ? [entry.loanFriendId]
+        : entry.splitFriendIds.length
+          ? entry.splitFriendIds
+          : friends.map((friend) => friend.id);
     const validSplitFriendIds = splitFriendIds.filter((friendId) =>
       balances.has(friendId),
     );
@@ -543,9 +575,9 @@ export function calculateSettlements(
       return;
     }
 
-    const cents = Math.round(entry.amount * 100);
-    const baseShare = Math.floor(cents / validSplitFriendIds.length);
-    const remainder = cents % validSplitFriendIds.length;
+    const units = entry.amount;
+    const baseShare = Math.floor(units / validSplitFriendIds.length);
+    const remainder = units % validSplitFriendIds.length;
 
     validSplitFriendIds.forEach((friendId, index) => {
       const share = baseShare + (index < remainder ? 1 : 0);
@@ -554,7 +586,7 @@ export function calculateSettlements(
 
     balances.set(
       entry.paidByFriendId,
-      (balances.get(entry.paidByFriendId) || 0) + cents,
+      (balances.get(entry.paidByFriendId) || 0) + units,
     );
   });
 
@@ -579,7 +611,7 @@ export function calculateSettlements(
       settlements.push({
         from: friendNames.get(debtor.id) || "Someone",
         to: friendNames.get(creditor.id) || "Someone",
-        amount: amount / 100,
+        amount,
       });
     }
 
@@ -601,6 +633,8 @@ export function calculateSettlements(
 export function formatMoney(amount: number) {
   return new Intl.NumberFormat("en-IN", {
     currency: "INR",
+    maximumFractionDigits: 0,
+    minimumFractionDigits: 0,
     style: "currency",
   }).format(amount);
 }

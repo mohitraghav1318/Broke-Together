@@ -57,6 +57,20 @@ function getFriendName(notebook: HisabaNotebook, friendId: string) {
   );
 }
 
+function getEntrySummary(entry: NotebookEntry, notebook: HisabaNotebook) {
+  if (entry.entryType === "loan") {
+    const borrower = entry.loanFriendId
+      ? getFriendName(notebook, entry.loanFriendId)
+      : "Unknown";
+
+    return entry.description
+      ? `Loan to ${borrower} - ${entry.description}`
+      : `Loan to ${borrower}`;
+  }
+
+  return entry.description || "No description";
+}
+
 function buildCategorySummary(entries: NotebookEntry[]) {
   const grouped = new Map<string, { amount: number; count: number }>();
   const total = entries.reduce((sum, entry) => sum + entry.amount, 0);
@@ -81,31 +95,44 @@ function buildCategorySummary(entries: NotebookEntry[]) {
     .sort((first, second) => second.amount - first.amount);
 }
 
+function startOfDay(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
 function buildTimeline(entries: NotebookEntry[]) {
-  const grouped = new Map<string, number>();
+  const grouped = new Map<number, number>();
   const formatter = new Intl.DateTimeFormat("en-IN", {
     day: "2-digit",
     month: "short",
   });
 
   entries.forEach((entry) => {
-    const date = getEntryDate(entry);
-    const key = date.toISOString().slice(0, 10);
+    const day = startOfDay(getEntryDate(entry)).getTime();
 
-    grouped.set(key, (grouped.get(key) || 0) + entry.amount);
+    grouped.set(day, (grouped.get(day) || 0) + entry.amount);
   });
 
-  return Array.from(grouped.entries())
-    .sort(([first], [second]) => first.localeCompare(second))
-    .map(([key, amount]) => ({
-      label: formatter.format(new Date(`${key}T00:00:00`)),
-      amount,
-    }));
+  const today = startOfDay(new Date());
+  const days: TimelinePoint[] = [];
+
+  for (let offset = 4; offset >= 0; offset -= 1) {
+    const day = new Date(today);
+    day.setDate(day.getDate() - offset);
+    const key = day.getTime();
+
+    days.push({
+      label: formatter.format(day),
+      amount: grouped.get(key) || 0,
+    });
+  }
+
+  return days;
 }
 
 function CategoryPieChart({ categories }: { categories: CategorySummary[] }) {
   const radius = 52;
   const circumference = 2 * Math.PI * radius;
+  const total = categories.reduce((sum, item) => sum + item.amount, 0);
   const segments = categories.map((category, index) => {
     const previousLength = categories
       .slice(0, index)
@@ -128,74 +155,92 @@ function CategoryPieChart({ categories }: { categories: CategorySummary[] }) {
   }
 
   return (
-    <div className="grid gap-5 sm:grid-cols-[160px_1fr] sm:items-center">
-      <svg
-        aria-label="Category expense pie chart"
-        className="mx-auto h-36 w-36 sm:h-44 sm:w-44"
-        role="img"
-        viewBox="0 0 140 140"
-      >
-        <circle
-          cx="70"
-          cy="70"
-          fill="none"
-          r={radius}
-          stroke="#e4e4e7"
-          strokeWidth="20"
-        />
-        {segments.map((category) => {
-          return (
-            <circle
-              cx="70"
-              cy="70"
-              fill="none"
-              key={category.category}
-              r={radius}
-              stroke={category.color}
-              strokeDasharray={`${category.length} ${
-                circumference - category.length
-              }`}
-              strokeDashoffset={category.dashOffset}
-              strokeLinecap="butt"
-              strokeWidth="20"
-              transform="rotate(-90 70 70)"
-            />
-          );
-        })}
-        <text
-          className="fill-zinc-950 text-sm font-semibold"
-          textAnchor="middle"
-          x="70"
-          y="66"
+    <div className="grid gap-5 sm:grid-cols-[180px_1fr] sm:items-center">
+      <div className="relative mx-auto grid place-items-center">
+        <svg
+          aria-label="Category expense pie chart"
+          className="h-40 w-40 sm:h-48 sm:w-48"
+          role="img"
+          viewBox="0 0 160 160"
         >
-          Total
-        </text>
-        <text
-          className="fill-zinc-600 text-xs"
-          textAnchor="middle"
-          x="70"
-          y="84"
-        >
-          {categories.length} groups
-        </text>
-      </svg>
+          <defs>
+            <filter id="categoryShadow" x="-20%" y="-20%" width="140%" height="140%">
+              <feDropShadow dx="0" dy="4" stdDeviation="6" floodColor="#0f172a" floodOpacity="0.12" />
+            </filter>
+          </defs>
+          <circle
+            cx="80"
+            cy="80"
+            fill="none"
+            r={radius}
+            stroke="#e4e4e7"
+            strokeWidth="22"
+          />
+          {segments.map((category) => {
+            return (
+              <circle
+                cx="80"
+                cy="80"
+                fill="none"
+                key={category.category}
+                r={radius}
+                stroke={category.color}
+                strokeDasharray={`${category.length} ${
+                  circumference - category.length
+                }`}
+                strokeDashoffset={category.dashOffset}
+                strokeLinecap="round"
+                strokeWidth="22"
+                transform="rotate(-90 80 80)"
+                filter="url(#categoryShadow)"
+              />
+            );
+          })}
+        </svg>
+        <div className="absolute text-center">
+          <p className="text-xs uppercase tracking-wide text-zinc-500">Total</p>
+          <p className="text-lg font-semibold text-zinc-950">
+            {formatMoney(total)}
+          </p>
+          <p className="text-xs text-zinc-500">
+            {categories.length} categories
+          </p>
+        </div>
+      </div>
 
       <div className="grid gap-3">
         {categories.map((category) => (
           <div
-            className="grid grid-cols-[auto_1fr_auto] items-center gap-2 text-xs sm:gap-3 sm:text-sm"
+            className="grid gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs sm:text-sm"
             key={category.category}
           >
-            <span
-              className="size-3 rounded-sm"
-              style={{ backgroundColor: category.color }}
-            />
-            <span className="truncate font-medium text-zinc-800">
-              {category.category}
-            </span>
-            <span className="text-zinc-600">
-              {category.percent.toFixed(1)}%
-            </span>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span
+                  className="size-3 rounded-sm"
+                  style={{ backgroundColor: category.color }}
+                />
+                <span className="truncate font-medium text-zinc-800">
+                  {category.category}
+                </span>
+              </div>
+              <span className="text-zinc-600">
+                {formatMoney(category.amount)}
+              </span>
+            </div>
+            <div className="h-2 rounded-full bg-zinc-100">
+              <div
+                className="h-2 rounded-full"
+                style={{
+                  width: `${category.percent}%`,
+                  backgroundColor: category.color,
+                }}
+              />
+            </div>
+            <div className="flex justify-between text-[11px] text-zinc-500">
+              <span>{category.count} entries</span>
+              <span>{category.percent.toFixed(1)}%</span>
+            </div>
           </div>
         ))}
       </div>
@@ -205,43 +250,84 @@ function CategoryPieChart({ categories }: { categories: CategorySummary[] }) {
 
 function TimelineChart({ points }: { points: TimelinePoint[] }) {
   const maxAmount = Math.max(...points.map((point) => point.amount), 0);
+  const hasData = points.some((point) => point.amount > 0);
+  const width = 520;
+  const height = 200;
+  const padding = 24;
+  const xStep = points.length > 1 ? (width - padding * 2) / (points.length - 1) : 0;
 
-  if (!points.length) {
+  const coordinates = points.map((point, index) => {
+    const x = padding + index * xStep;
+    const y = maxAmount
+      ? height - padding - (point.amount / maxAmount) * (height - padding * 2)
+      : height - padding;
+
+    return { x, y, label: point.label, amount: point.amount };
+  });
+
+  const linePath = coordinates
+    .map((point, index) => `${index === 0 ? "M" : "L"}${point.x},${point.y}`)
+    .join(" ");
+  const areaPath = `${linePath} L ${padding + (points.length - 1) * xStep},${height - padding} L ${padding},${height - padding} Z`;
+
+  if (!points.length || !hasData) {
     return (
       <div className="grid min-h-64 place-items-center rounded-lg border border-zinc-200 bg-zinc-50 text-sm text-zinc-500">
-        No timeline data yet.
+        No expense data in the last 5 days.
       </div>
     );
   }
 
   return (
     <div className="overflow-x-auto">
-      <div className="flex min-h-64 min-w-[520px] items-end gap-3 rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-5">
-        {points.map((point) => {
-          const height = maxAmount
-            ? Math.max((point.amount / maxAmount) * 170, 8)
-            : 8;
-
-          return (
-            <div className="grid flex-1 gap-2" key={point.label}>
-              <div className="flex h-44 items-end">
-                <div
-                  className="w-full rounded-t-md bg-emerald-600"
-                  style={{ height }}
-                  title={`${point.label}: ${formatMoney(point.amount)}`}
-                />
-              </div>
-              <div className="grid gap-1 text-center">
-                <span className="text-xs font-semibold text-zinc-700">
-                  {point.label}
-                </span>
-                <span className="text-xs text-zinc-500">
-                  {formatMoney(point.amount)}
-                </span>
-              </div>
+      <div className="min-w-[520px] rounded-lg border border-zinc-200 bg-white px-4 py-5">
+        <svg
+          className="h-48 w-full"
+          role="img"
+          viewBox={`0 0 ${width} ${height}`}
+        >
+          <defs>
+            <linearGradient id="timelineFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#10b981" stopOpacity="0.35" />
+              <stop offset="100%" stopColor="#10b981" stopOpacity="0" />
+            </linearGradient>
+          </defs>
+          {[0.25, 0.5, 0.75, 1].map((tick) => (
+            <line
+              key={tick}
+              x1={padding}
+              x2={width - padding}
+              y1={height - padding - (height - padding * 2) * tick}
+              y2={height - padding - (height - padding * 2) * tick}
+              stroke="#e4e4e7"
+              strokeDasharray="4 4"
+              strokeWidth="1"
+            />
+          ))}
+          <path d={areaPath} fill="url(#timelineFill)" />
+          <path
+            d={linePath}
+            fill="none"
+            stroke="#10b981"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          {coordinates.map((point) => (
+            <g key={point.label}>
+              <circle cx={point.x} cy={point.y} r="5" fill="#10b981" />
+              <circle cx={point.x} cy={point.y} r="9" fill="#10b981" opacity="0.12" />
+            </g>
+          ))}
+        </svg>
+        <div className="mt-3 grid grid-cols-5 gap-2 text-xs text-zinc-600">
+          {coordinates.map((point) => (
+            <div className="text-center" key={point.label}>
+              <p className="font-medium text-zinc-800">{point.label}</p>
+              <p>{formatMoney(point.amount)}</p>
             </div>
-          );
-        })}
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -269,6 +355,7 @@ function WhoPaysGraph({
       amount,
     }))
     .sort((a, b) => b.amount - a.amount);
+  const total = points.reduce((sum, point) => sum + point.amount, 0);
 
   const maxAmount = Math.max(...points.map((point) => point.amount), 0);
 
@@ -282,12 +369,14 @@ function WhoPaysGraph({
 
   return (
     <div className="overflow-x-auto">
-      <div className="grid min-h-64 gap-4 rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-5">
+      <div className="grid min-h-64 gap-4 rounded-lg border border-zinc-200 bg-white px-4 py-5">
         {points.map((point, index) => {
           const width = maxAmount
             ? Math.max((point.amount / maxAmount) * 100, 2)
             : 2;
           const color = chartColors[index % chartColors.length];
+          const percent = total ? (point.amount / total) * 100 : 0;
+
           return (
             <div className="grid gap-2" key={point.label}>
               <div className="flex justify-between text-sm font-medium">
@@ -296,11 +385,17 @@ function WhoPaysGraph({
                   {formatMoney(point.amount)}
                 </span>
               </div>
-              <div className="h-4 w-full rounded-sm bg-zinc-200">
+              <div className="h-3 w-full rounded-full bg-zinc-100">
                 <div
-                  className="h-full rounded-sm transition-all"
-                  style={{ width: `${width}%`, backgroundColor: color }}
+                  className="h-3 rounded-full transition-all"
+                  style={{
+                    width: `${width}%`,
+                    background: `linear-gradient(90deg, ${color}, #10b981)`
+                  }}
                 />
+              </div>
+              <div className="text-xs text-zinc-500">
+                {percent.toFixed(1)}% of total spending
               </div>
             </div>
           );
@@ -353,14 +448,28 @@ export function NotebookReport({ notebookId }: NotebookReportProps) {
   }, [notebook?.memberIds, notebookId, user]);
 
   const isMember = Boolean(user && notebook?.memberIds.includes(user.uid));
-  const totalExpense = entries.reduce((sum, entry) => sum + entry.amount, 0);
+  const expenseEntries = entries.filter((entry) => entry.entryType !== "loan");
+  const loanEntries = entries.filter((entry) => entry.entryType === "loan");
+  const totalExpense = expenseEntries.reduce(
+    (sum, entry) => sum + entry.amount,
+    0,
+  );
+  const totalLoaned = loanEntries.reduce(
+    (sum, entry) => sum + entry.amount,
+    0,
+  );
   const settlements = useMemo(
     () => calculateSettlements(notebook?.friends || [], entries),
     [entries, notebook?.friends],
   );
-  const categories = useMemo(() => buildCategorySummary(entries), [entries]);
-  const timeline = useMemo(() => buildTimeline(entries), [entries]);
-  const averageEntry = entries.length ? totalExpense / entries.length : 0;
+  const categories = useMemo(
+    () => buildCategorySummary(expenseEntries),
+    [expenseEntries],
+  );
+  const timeline = useMemo(() => buildTimeline(expenseEntries), [expenseEntries]);
+  const averageEntry = expenseEntries.length
+    ? totalExpense / expenseEntries.length
+    : 0;
   const isNotebookOwner = Boolean(user && notebook?.ownerUid === user.uid);
 
   const itemsPerPage = 7;
@@ -532,7 +641,7 @@ export function NotebookReport({ notebookId }: NotebookReportProps) {
       ) : null}
 
       <div id="report-container" className="grid min-w-0 gap-6 bg-stone-50 pb-4">
-        <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
+        <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-5">
           <SurfaceCard>
             <p className="text-sm font-medium text-zinc-600">Total expense</p>
             <p className="mt-2 text-2xl font-semibold text-zinc-950">
@@ -542,7 +651,7 @@ export function NotebookReport({ notebookId }: NotebookReportProps) {
           <SurfaceCard>
             <p className="text-sm font-medium text-zinc-600">Entries</p>
             <p className="mt-2 text-2xl font-semibold text-zinc-950">
-              {entries.length}
+              {expenseEntries.length}
             </p>
           </SurfaceCard>
           <SurfaceCard>
@@ -557,6 +666,15 @@ export function NotebookReport({ notebookId }: NotebookReportProps) {
               {formatMoney(averageEntry)}
             </p>
           </SurfaceCard>
+          <SurfaceCard>
+            <p className="text-sm font-medium text-zinc-600">Loans total</p>
+            <p className="mt-2 text-2xl font-semibold text-zinc-950">
+              {formatMoney(totalLoaned)}
+            </p>
+            <p className="mt-1 text-xs text-zinc-500">
+              {loanEntries.length} loan entries
+            </p>
+          </SurfaceCard>
         </section>
 
         <div className="grid min-w-0 gap-4 sm:gap-6 lg:grid-cols-[1fr_420px]">
@@ -566,7 +684,7 @@ export function NotebookReport({ notebookId }: NotebookReportProps) {
                 Timeline graph
               </h2>
               <p className="mt-1 text-sm text-zinc-600">
-                Daily spending from all entries.
+                Spending totals for the last 5 days.
               </p>
             </div>
             <TimelineChart points={timeline} />
@@ -595,7 +713,7 @@ export function NotebookReport({ notebookId }: NotebookReportProps) {
                 Total amount paid by each friend.
               </p>
             </div>
-            <WhoPaysGraph entries={entries} notebook={notebook} />
+            <WhoPaysGraph entries={expenseEntries} notebook={notebook} />
           </SurfaceCard>
 
           <SurfaceCard>
@@ -691,10 +809,10 @@ export function NotebookReport({ notebookId }: NotebookReportProps) {
         <SurfaceCard>
           <div className="mb-5">
             <h2 className="text-xl font-semibold text-zinc-950">
-              Expense table
+              Entries table
             </h2>
             <p className="mt-1 text-sm text-zinc-600">
-              All notebook entries in table format.
+              Expenses and loans in table format.
             </p>
           </div>
           {entries.length ? (
@@ -721,7 +839,7 @@ export function NotebookReport({ notebookId }: NotebookReportProps) {
                         }).format(getEntryDate(entry))}
                       </span>
                       <span className="truncate font-medium text-zinc-950">
-                        {entry.description || "No description"}
+                        {getEntrySummary(entry, notebook)}
                       </span>
                       <span className="truncate text-zinc-700">{entry.category}</span>
                       <span className="truncate text-zinc-700">

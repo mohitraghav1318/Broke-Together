@@ -10,6 +10,7 @@ import { SurfaceCard } from "@/components/ui/surface-card";
 import { TextInput } from "@/components/ui/text-input";
 import { firebaseAuth } from "@/firebase/firebase-client";
 import { enforceAuthSession } from "@/features/auth/lib/auth-session";
+import { NotebookEntryForm } from "@/features/notebooks/components/notebook-entry-form";
 import {
   addNotebookEntry,
   addNotebookCategory,
@@ -46,10 +47,6 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
   const [notebookName, setNotebookName] = useState("");
   const [friendName, setFriendName] = useState("");
   const [categoryName, setCategoryName] = useState("");
-  const [amount, setAmount] = useState("");
-  const [paidByFriendId, setPaidByFriendId] = useState("");
-  const [category, setCategory] = useState("");
-  const [description, setDescription] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -67,25 +64,6 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
       (nextNotebook) => {
         setNotebook(nextNotebook);
         setNotebookName(nextNotebook?.name || "");
-        setPaidByFriendId((current) => {
-          if (
-            current &&
-            nextNotebook?.friends.some((friend) => friend.id === current)
-          ) {
-            return current;
-          }
-
-          return nextNotebook?.friends[0]?.id || "";
-        });
-        setCategory((current) => {
-          const nextCategories = nextNotebook
-            ? getNotebookCategories(nextNotebook)
-            : [];
-
-          return current && nextCategories.includes(current)
-            ? current
-            : nextCategories[0] || "";
-        });
         setIsNotebookLoading(false);
       },
       (error) => {
@@ -125,6 +103,17 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
 
   function isCategoryUsed(nextCategory: string) {
     return entries.some((entry) => entry.category === nextCategory);
+  }
+
+  function getFriendName(friendId: string | null) {
+    if (!friendId) {
+      return "Unknown";
+    }
+
+    return (
+      notebook?.friends.find((friend) => friend.id === friendId)?.name ||
+      "Unknown"
+    );
   }
 
   async function handleJoinNotebook() {
@@ -240,11 +229,16 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
     }
   }
 
-  async function handleAddEntry(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
+  async function handleAddEntry(draft: {
+    entryType: NotebookEntry["entryType"];
+    amount: string;
+    paidByFriendId: string;
+    category: string;
+    description: string;
+    loanFriendId: string;
+  }) {
     if (!user) {
-      return;
+      return false;
     }
 
     setIsSavingEntry(true);
@@ -253,16 +247,18 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
 
     try {
       await addNotebookEntry(notebookId, user, {
-        amount: Number(amount),
-        paidByFriendId,
-        category,
-        description,
+        amount: Number(draft.amount),
+        paidByFriendId: draft.paidByFriendId,
+        category: draft.category,
+        entryType: draft.entryType,
+        loanFriendId: draft.loanFriendId || null,
+        description: draft.description,
       });
-      setAmount("");
-      setDescription("");
       setSuccessMessage("Entry added.");
+      return true;
     } catch (error) {
       setErrorMessage(getNotebookErrorMessage(error));
+      return false;
     } finally {
       setIsSavingEntry(false);
     }
@@ -534,74 +530,12 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
             <h2 className="mb-4 text-xl font-semibold text-zinc-950">
               Add entry
             </h2>
-            <form className="grid gap-4" onSubmit={handleAddEntry}>
-              <TextInput
-                id="amount"
-                label="Money paid"
-                min="0"
-                onChange={(event) => setAmount(event.target.value)}
-                placeholder="120.00"
-                step="0.01"
-                type="number"
-                value={amount}
-              />
-
-              <label
-                className="grid gap-2 text-sm font-medium text-zinc-800"
-                htmlFor="paid-by"
-              >
-                By whom
-                <select
-                  className="h-11 rounded-md border border-zinc-300 bg-white px-3 text-base text-zinc-950 outline-none transition-colors focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
-                  id="paid-by"
-                  onChange={(event) => setPaidByFriendId(event.target.value)}
-                  value={paidByFriendId}
-                >
-                  {notebook.friends.map((friend) => (
-                    <option key={friend.id} value={friend.id}>
-                      {friend.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label
-                className="grid gap-2 text-sm font-medium text-zinc-800"
-                htmlFor="category"
-              >
-                On what
-                <select
-                  className="h-11 rounded-md border border-zinc-300 bg-white px-3 text-base text-zinc-950 outline-none transition-colors focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
-                  id="category"
-                  onChange={(event) => setCategory(event.target.value)}
-                  value={category}
-                >
-                  {notebookCategories.map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label
-                className="grid gap-2 text-sm font-medium text-zinc-800"
-                htmlFor="description"
-              >
-                Description
-                <textarea
-                  className="min-h-24 rounded-md border border-zinc-300 bg-white px-3 py-2 text-base text-zinc-950 outline-none transition-colors placeholder:text-zinc-400 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
-                  id="description"
-                  onChange={(event) => setDescription(event.target.value)}
-                  placeholder="Items, notes, or leave empty"
-                  value={description}
-                />
-              </label>
-
-              <AppButton disabled={isSavingEntry} type="submit">
-                {isSavingEntry ? "Saving..." : "Add entry"}
-              </AppButton>
-            </form>
+            <NotebookEntryForm
+              categories={notebookCategories}
+              isSaving={isSavingEntry}
+              notebook={notebook}
+              onSubmit={handleAddEntry}
+            />
           </SurfaceCard>
         </div>
 
@@ -628,6 +562,10 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
               Open a full report with settlement table, timeline graph, pie
               chart, and category review.
             </p>
+            <p className="text-xs text-zinc-500">
+              Expenses are split equally. Loans create a direct balance between
+              lender and borrower.
+            </p>
           </SurfaceCard>
 
           <SurfaceCard>
@@ -652,6 +590,14 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
                     const payer = notebook.friends.find(
                       (friend) => friend.id === entry.paidByFriendId,
                     );
+                    const borrowerName =
+                      entry.entryType === "loan"
+                        ? getFriendName(entry.loanFriendId)
+                        : "";
+                    const entryTitle =
+                      entry.entryType === "loan"
+                        ? `Loan to ${borrowerName}`
+                        : entry.category;
 
                     return (
                       <div
@@ -660,11 +606,16 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
                       >
                         <div>
                           <p className="font-semibold text-zinc-950">
-                            {entry.category}
+                            {entryTitle}
                           </p>
                           {entry.description ? (
                             <p className="mt-1 leading-6 text-zinc-600">
                               {entry.description}
+                            </p>
+                          ) : null}
+                          {entry.entryType === "loan" && !entry.description ? (
+                            <p className="mt-1 leading-6 text-zinc-600">
+                              Borrower: {borrowerName}
                             </p>
                           ) : null}
                         </div>
