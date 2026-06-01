@@ -7,9 +7,10 @@ import type {
 type UseNotebookEntryFormArgs = {
   notebook: HisabaNotebook;
   categories: string[];
+  initialValues?: NotebookEntryFormState;
 };
 
-type NotebookEntryFormState = {
+export type NotebookEntryFormState = {
   entryType: NotebookEntryType;
   amount: string;
   paidByFriendId: string;
@@ -25,13 +26,22 @@ function getDefaultBorrower(friends: HisabaNotebook["friends"], lenderId: string
 export function useNotebookEntryForm({
   notebook,
   categories,
+  initialValues,
 }: UseNotebookEntryFormArgs) {
-  const [entryType, setEntryType] = useState<NotebookEntryType>("expense");
-  const [amount, setAmount] = useState("");
-  const [paidByFriendId, setPaidByFriendId] = useState("");
-  const [loanFriendId, setLoanFriendId] = useState("");
-  const [category, setCategory] = useState("");
-  const [description, setDescription] = useState("");
+  const [entryType, setEntryType] = useState<NotebookEntryType>(
+    initialValues?.entryType || "expense",
+  );
+  const [amount, setAmount] = useState(initialValues?.amount || "");
+  const [paidByFriendId, setPaidByFriendId] = useState(
+    initialValues?.paidByFriendId || "",
+  );
+  const [loanFriendId, setLoanFriendId] = useState(
+    initialValues?.loanFriendId || "",
+  );
+  const [category, setCategory] = useState(initialValues?.category || "");
+  const [description, setDescription] = useState(
+    initialValues?.description || "",
+  );
 
   useEffect(() => {
     if (!notebook.friends.length) {

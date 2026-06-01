@@ -11,11 +11,12 @@ import { TextInput } from "@/components/ui/text-input";
 import { firebaseAuth } from "@/firebase/firebase-client";
 import { enforceAuthSession } from "@/features/auth/lib/auth-session";
 import { NotebookEntryForm } from "@/features/notebooks/components/notebook-entry-form";
+import { NotebookSummaryCard } from "@/features/notebooks/components/notebook-summary-card";
+import type { NotebookEntryFormState } from "@/features/notebooks/hooks/use-notebook-entry-form";
 import {
   addNotebookEntry,
   addNotebookCategory,
   addNotebookFriend,
-  formatMoney,
   getNotebookCategories,
   getNotebookErrorMessage,
   joinNotebook,
@@ -23,8 +24,10 @@ import {
   removeNotebookFriend,
   subscribeNotebook,
   subscribeNotebookEntries,
+  subscribeRecentNotebookActivities,
   updateNotebookName,
   type HisabaNotebook,
+  type NotebookActivity,
   type NotebookEntry,
 } from "@/features/notebooks/lib/hisaba-notebooks";
 
@@ -32,10 +35,22 @@ type NotebookWorkspaceProps = {
   notebookId: string;
 };
 
+function formatActivityTimestamp(createdAt: NotebookActivity["createdAt"]) {
+  if (!createdAt) {
+    return "Just now";
+  }
+
+  return new Intl.DateTimeFormat("en-IN", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(createdAt.toDate());
+}
+
 export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
   const [user, setUser] = useState<User | null>(null);
   const [notebook, setNotebook] = useState<HisabaNotebook | null>(null);
   const [entries, setEntries] = useState<NotebookEntry[]>([]);
+  const [activities, setActivities] = useState<NotebookActivity[]>([]);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [isNotebookLoading, setIsNotebookLoading] = useState(true);
   const [isJoining, setIsJoining] = useState(false);
@@ -49,7 +64,6 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
   const [categoryName, setCategoryName] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     return onAuthStateChanged(firebaseAuth, async (currentUser) => {
@@ -83,15 +97,21 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
     );
   }, [notebook?.memberIds, notebookId, user]);
 
+  useEffect(() => {
+    if (!user || !notebook?.memberIds.includes(user.uid)) {
+      return;
+    }
+
+    return subscribeRecentNotebookActivities(
+      notebookId,
+      5,
+      setActivities,
+      (error) => setErrorMessage(getNotebookErrorMessage(error)),
+    );
+  }, [notebook?.memberIds, notebookId, user]);
+
   const isMember = Boolean(user && notebook?.memberIds.includes(user.uid));
   const notebookCategories = notebook ? getNotebookCategories(notebook) : [];
-
-  const itemsPerPage = 7;
-  const totalPages = Math.max(1, Math.ceil(entries.length / itemsPerPage));
-  const paginatedEntries = entries.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage,
-  );
 
   function isFriendUsed(friendId: string) {
     return entries.some(
@@ -103,17 +123,6 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
 
   function isCategoryUsed(nextCategory: string) {
     return entries.some((entry) => entry.category === nextCategory);
-  }
-
-  function getFriendName(friendId: string | null) {
-    if (!friendId) {
-      return "Unknown";
-    }
-
-    return (
-      notebook?.friends.find((friend) => friend.id === friendId)?.name ||
-      "Unknown"
-    );
   }
 
   async function handleJoinNotebook() {
@@ -156,7 +165,11 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
     setSuccessMessage("");
 
     try {
-      await updateNotebookName(notebookId, notebookName);
+      if (!user) {
+        return;
+      }
+
+      await updateNotebookName(notebookId, user, notebookName);
       setSuccessMessage("Notebook name updated.");
     } catch (error) {
       setErrorMessage(getNotebookErrorMessage(error));
@@ -172,7 +185,11 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
     setSuccessMessage("");
 
     try {
-      await addNotebookFriend(notebookId, friendName);
+      if (!user) {
+        return;
+      }
+
+      await addNotebookFriend(notebookId, user, friendName);
       setFriendName("");
       setSuccessMessage("Friend added.");
     } catch (error) {
@@ -188,7 +205,11 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
     setSuccessMessage("");
 
     try {
-      await removeNotebookFriend(notebookId, friendId);
+      if (!user) {
+        return;
+      }
+
+      await removeNotebookFriend(notebookId, user, friendId);
       setSuccessMessage("Friend removed.");
     } catch (error) {
       setErrorMessage(getNotebookErrorMessage(error));
@@ -229,14 +250,7 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
     }
   }
 
-  async function handleAddEntry(draft: {
-    entryType: NotebookEntry["entryType"];
-    amount: string;
-    paidByFriendId: string;
-    category: string;
-    description: string;
-    loanFriendId: string;
-  }) {
+  async function handleSubmitEntry(draft: NotebookEntryFormState) {
     if (!user) {
       return false;
     }
@@ -246,14 +260,16 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
     setSuccessMessage("");
 
     try {
-      await addNotebookEntry(notebookId, user, {
+      const payload = {
         amount: Number(draft.amount),
         paidByFriendId: draft.paidByFriendId,
         category: draft.category,
         entryType: draft.entryType,
         loanFriendId: draft.loanFriendId || null,
         description: draft.description,
-      });
+      };
+
+      await addNotebookEntry(notebookId, user, payload);
       setSuccessMessage("Entry added.");
       return true;
     } catch (error) {
@@ -531,142 +547,56 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
               Add entry
             </h2>
             <NotebookEntryForm
+              key="create-entry"
               categories={notebookCategories}
               isSaving={isSavingEntry}
               notebook={notebook}
-              onSubmit={handleAddEntry}
+              onSubmit={handleSubmitEntry}
             />
           </SurfaceCard>
         </div>
 
         <div className="grid gap-6">
+          <NotebookSummaryCard
+            entries={entries}
+            notebook={notebook}
+            notebookId={notebookId}
+          />
+
           <SurfaceCard>
             <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
               <div>
                 <h2 className="text-xl font-semibold text-zinc-950">
-                  Settlement report
+                  Recent activity
                 </h2>
                 <p className="mt-1 text-sm text-zinc-600">
-                  Split equally between {notebook.friends.length}{" "}
-                  {notebook.friends.length === 1 ? "friend" : "friends"}.
+                  Latest notebook changes and transactions.
                 </p>
               </div>
               <Link
-                className="inline-flex h-11 items-center justify-center rounded-md border border-transparent bg-emerald-600 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700"
-                href={`/notebooks/${notebookId}/report`}
+                className="inline-flex h-11 items-center justify-center rounded-md border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-950 transition-colors hover:bg-zinc-100"
+                href={`/notebooks/${notebookId}/transactions`}
               >
-                Generate report
+                View all transactions
               </Link>
             </div>
-            <p className="rounded-md border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-600">
-              Open a full report with settlement table, timeline graph, pie
-              chart, and category review.
-            </p>
-            <p className="text-xs text-zinc-500">
-              Expenses are split equally. Loans create a direct balance between
-              lender and borrower.
-            </p>
-          </SurfaceCard>
 
-          <SurfaceCard>
-            <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-              <div>
-                <h2 className="text-xl font-semibold text-zinc-950">Entries</h2>
-                <p className="mt-1 text-sm text-zinc-600">
-                  {entries.length} {entries.length === 1 ? "entry" : "entries"}
-                </p>
-              </div>
-            </div>
-
-            {entries.length ? (
-              <div className="overflow-hidden rounded-lg border border-zinc-200">
-                <div className="grid grid-cols-[1fr_120px] gap-3 bg-zinc-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500 sm:grid-cols-[1fr_140px_140px]">
-                  <span>Entry</span>
-                  <span>Paid by</span>
-                  <span className="hidden sm:block">Amount</span>
-                </div>
-                <div className="divide-y divide-zinc-200">
-                  {paginatedEntries.map((entry) => {
-                    const payer = notebook.friends.find(
-                      (friend) => friend.id === entry.paidByFriendId,
-                    );
-                    const borrowerName =
-                      entry.entryType === "loan"
-                        ? getFriendName(entry.loanFriendId)
-                        : "";
-                    const entryTitle =
-                      entry.entryType === "loan"
-                        ? `Loan to ${borrowerName}`
-                        : entry.category;
-
-                    return (
-                      <div
-                        className="grid grid-cols-[1fr_120px] gap-3 px-4 py-4 text-sm sm:grid-cols-[1fr_140px_140px]"
-                        key={entry.id}
-                      >
-                        <div>
-                          <p className="font-semibold text-zinc-950">
-                            {entryTitle}
-                          </p>
-                          {entry.description ? (
-                            <p className="mt-1 leading-6 text-zinc-600">
-                              {entry.description}
-                            </p>
-                          ) : null}
-                          {entry.entryType === "loan" && !entry.description ? (
-                            <p className="mt-1 leading-6 text-zinc-600">
-                              Borrower: {borrowerName}
-                            </p>
-                          ) : null}
-                        </div>
-                        <p className="text-zinc-700">
-                          {payer?.name || "Unknown"}
-                        </p>
-                        <p className="font-semibold text-zinc-950 sm:block">
-                          {formatMoney(entry.amount)}
-                        </p>
-                      </div>
-                    );
-                  })}
-                </div>
-                {totalPages > 1 && (
-                  <div className="flex flex-wrap items-center justify-between gap-4 border-t border-zinc-200 bg-white px-4 py-3 sm:px-6">
-                    <p className="text-sm text-zinc-700">
-                      Showing{" "}
-                      <span className="font-medium">
-                        {(currentPage - 1) * itemsPerPage + 1}
-                      </span>{" "}
-                      to{" "}
-                      <span className="font-medium">
-                        {Math.min(currentPage * itemsPerPage, entries.length)}
-                      </span>{" "}
-                      of <span className="font-medium">{entries.length}</span>{" "}
-                      entries
+            {activities.length ? (
+              <div className="divide-y divide-zinc-200 overflow-hidden rounded-lg border border-zinc-200">
+                {activities.map((activity) => (
+                  <div className="grid gap-1 px-4 py-3" key={activity.id}>
+                    <p className="text-sm font-medium text-zinc-950">
+                      {activity.summary}
                     </p>
-                    <div className="flex gap-2">
-                      <AppButton
-                        disabled={currentPage === 1}
-                        onClick={() => setCurrentPage((p) => p - 1)}
-                        type="button"
-                        variant="secondary"
-                      >
-                        Previous
-                      </AppButton>
-                      <AppButton
-                        disabled={currentPage === totalPages}
-                        onClick={() => setCurrentPage((p) => p + 1)}
-                        type="button"
-                        variant="secondary"
-                      >
-                        Next
-                      </AppButton>
-                    </div>
+                    <p className="text-xs text-zinc-500">
+                      {formatActivityTimestamp(activity.createdAt)}
+                    </p>
                   </div>
-                )}
+                ))}
               </div>
             ) : (
               <p className="rounded-md border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-600">
-                No entries yet.
+                No activity yet.
               </p>
             )}
           </SurfaceCard>

@@ -38,6 +38,11 @@ export type CreatePersonalExpenseInput = {
   entryDate: string;
 };
 
+type ExpenseOwnershipCheck = {
+  expenseRef: ReturnType<typeof doc>;
+  expenseSnapshot: Awaited<ReturnType<typeof getDoc>>;
+};
+
 class InvalidPersonalExpenseError extends Error {
   constructor(message: string) {
     super(message);
@@ -47,6 +52,21 @@ class InvalidPersonalExpenseError extends Error {
 
 function normalizeCategory(value: string) {
   return value.trim().replace(/\s+/g, " ");
+}
+
+async function getOwnedExpenseRef(userId: string, expenseId: string) {
+  const expenseRef = doc(firebaseDb, "users", userId, "personalExpenses", expenseId);
+  const expenseSnapshot = await getDoc(expenseRef);
+
+  if (!expenseSnapshot.exists()) {
+    throw new InvalidPersonalExpenseError("Expense not found.");
+  }
+
+  if (expenseSnapshot.data().userId !== userId) {
+    throw new InvalidPersonalExpenseError("You can only manage your own expense.");
+  }
+
+  return { expenseRef, expenseSnapshot } satisfies ExpenseOwnershipCheck;
 }
 
 function expenseFromSnapshot(
@@ -83,7 +103,9 @@ export function subscribePersonalExpenses(
   return onSnapshot(
     expensesQuery,
     (snapshot) => {
-      const expenses = snapshot.docs.map(expenseFromSnapshot);
+      const expenses = snapshot.docs
+        .map(expenseFromSnapshot)
+        .filter((expense) => !expense.deletedAt);
       onNext(expenses);
     },
     onError,
@@ -135,16 +157,7 @@ export async function updatePersonalExpense(
   const category = normalizeCategory(input.category);
   const description = input.description.trim();
   const entryDate = input.entryDate.trim();
-  const expenseRef = doc(firebaseDb, "users", userId, "personalExpenses", expenseId);
-  const expenseSnapshot = await getDoc(expenseRef);
-
-  if (!expenseSnapshot.exists()) {
-    throw new InvalidPersonalExpenseError("Expense not found.");
-  }
-
-  if (expenseSnapshot.data().userId !== userId) {
-    throw new InvalidPersonalExpenseError("You can only edit your own expense.");
-  }
+  const { expenseRef } = await getOwnedExpenseRef(userId, expenseId);
 
   if (!amount || amount <= 0) {
     throw new InvalidPersonalExpenseError("Enter a valid amount.");
@@ -163,6 +176,24 @@ export async function updatePersonalExpense(
     category,
     description,
     entryDate,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function deletePersonalExpense(userId: string, expenseId: string) {
+  const { expenseRef } = await getOwnedExpenseRef(userId, expenseId);
+
+  await updateDoc(expenseRef, {
+    deletedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function restorePersonalExpense(userId: string, expenseId: string) {
+  const { expenseRef } = await getOwnedExpenseRef(userId, expenseId);
+
+  await updateDoc(expenseRef, {
+    deletedAt: null,
     updatedAt: serverTimestamp(),
   });
 }

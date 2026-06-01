@@ -15,6 +15,11 @@ service cloud.firestore {
         && request.auth.uid in get(/databases/$(database)/documents/notebooks/$(notebookId)).data.memberIds;
     }
 
+    function isNotebookMemberByIdAfterWrite(notebookId) {
+      return signedIn()
+        && request.auth.uid in getAfter(/databases/$(database)/documents/notebooks/$(notebookId)).data.memberIds;
+    }
+
     function isJoiningSelf() {
       return signedIn()
         && !(request.auth.uid in resource.data.memberIds)
@@ -32,6 +37,103 @@ service cloud.firestore {
           "updatedAt"
         ]);
     }
+
+      function isNotebookEntryShape(entry) {
+        return entry.keys().hasOnly([
+            "entryType",
+            "amount",
+            "paidByFriendId",
+            "splitFriendIds",
+            "loanFriendId",
+            "category",
+            "description",
+            "createdByUid",
+            "createdByName",
+            "createdAt",
+            "updatedAt",
+            "deletedAt"
+          ])
+          && entry.entryType is string
+          && (entry.entryType == "expense" || entry.entryType == "loan")
+          && entry.amount is number
+          && entry.amount > 0
+          && entry.paidByFriendId is string
+          && entry.paidByFriendId.size() > 0
+          && entry.splitFriendIds is list
+          && entry.category is string
+          && entry.category.size() > 0
+          && entry.description is string
+          && entry.createdByUid is string
+          && entry.createdByUid.size() > 0
+          && entry.createdByName is string
+          && entry.createdByName.size() > 0
+          && entry.createdAt is timestamp
+          && entry.updatedAt is timestamp
+          && (entry.deletedAt == null || entry.deletedAt is timestamp);
+      }
+
+      function isExpenseEntry(notebook, entry) {
+        return entry.entryType == "expense"
+          && entry.loanFriendId == null
+          && entry.splitFriendIds.size() > 0
+          && entry.category in notebook.data.categories;
+      }
+
+      function isLoanEntry(entry) {
+        return entry.entryType == "loan"
+          && entry.loanFriendId is string
+          && entry.loanFriendId.size() > 0
+          && entry.category == "Loan"
+          && entry.splitFriendIds.size() == 1
+          && entry.splitFriendIds[0] == entry.loanFriendId;
+      }
+
+      function isNotebookEntrySoftDelete() {
+        return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            "deletedAt",
+            "updatedAt"
+          ])
+          && request.resource.data.createdByUid == resource.data.createdByUid
+          && request.resource.data.createdByName == resource.data.createdByName
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.deletedAt is timestamp
+          && request.resource.data.updatedAt is timestamp;
+      }
+
+      function isNotebookActivityShape(activity) {
+        return activity.keys().hasOnly([
+            "type",
+            "actorUid",
+            "actorName",
+            "targetType",
+            "targetId",
+            "summary",
+            "metadata",
+            "createdAt"
+          ])
+          && activity.type is string
+          && activity.type in [
+            "entry.created",
+            "entry.updated",
+            "entry.deleted",
+            "entry.restored",
+            "member.joined",
+            "member.added",
+            "member.removed",
+            "notebook.renamed"
+          ]
+          && activity.actorUid == request.auth.uid
+          && activity.actorName is string
+          && activity.actorName.size() > 0
+          && activity.targetType is string
+          && activity.targetType in ["entry", "member", "notebook"]
+          && activity.targetId is string
+          && activity.targetId.size() > 0
+          && activity.summary is string
+          && activity.summary.size() > 0
+          && activity.metadata is map
+          && activity.createdAt is timestamp;
+      }
 
     match /users/{userId} {
       allow read, create, update, delete: if signedIn() && request.auth.uid == userId;
@@ -75,7 +177,8 @@ service cloud.firestore {
             "createdAt",
             "updatedAt"
           ]);
-        allow delete: if false;
+        allow delete: if signedIn()
+          && get(/databases/$(database)/documents/notebooks/$(notebookId)).data.ownerUid == request.auth.uid;
       }
     }
 
@@ -107,20 +210,38 @@ service cloud.firestore {
         allow read: if isNotebookMemberById(notebookId);
         allow create: if isNotebookMemberById(notebookId)
           && request.resource.data.createdByUid == request.auth.uid
-          && request.resource.data.amount is number
-          && request.resource.data.amount > 0
-          && request.resource.data.keys().hasOnly([
-            "amount",
-            "paidByFriendId",
-            "splitFriendIds",
-            "category",
-            "description",
-            "createdByUid",
-            "createdByName",
-            "createdAt"
-          ]);
-        allow update: if false;
-        allow delete: if signedIn() && get(/databases/$(database)/documents/notebooks/$(notebookId)).data.ownerUid == request.auth.uid;
+            && isNotebookEntryShape(request.resource.data)
+            && (
+              isExpenseEntry(get(/databases/$(database)/documents/notebooks/$(notebookId)), request.resource.data)
+              || isLoanEntry(request.resource.data)
+            )
+            && request.resource.data.deletedAt == null;
+        allow update: if isNotebookMemberById(notebookId)
+          && isNotebookEntrySoftDelete()
+          || isNotebookMemberById(notebookId)
+          && request.resource.data.createdByUid == resource.data.createdByUid
+          && request.resource.data.createdByName == resource.data.createdByName
+          && request.resource.data.createdAt == resource.data.createdAt
+            && isNotebookEntryShape(request.resource.data)
+            && (
+              isExpenseEntry(get(/databases/$(database)/documents/notebooks/$(notebookId)), request.resource.data)
+              || isLoanEntry(request.resource.data)
+            );
+          allow delete: if isNotebookMemberById(notebookId);
+      }
+
+      match /activities/{activityId} {
+        allow read: if isNotebookMemberById(notebookId);
+        allow create: if isNotebookActivityShape(request.resource.data)
+          && (
+            isNotebookMemberById(notebookId)
+            || (
+              request.resource.data.type == "member.joined"
+              && request.resource.data.targetId == request.auth.uid
+              && isNotebookMemberByIdAfterWrite(notebookId)
+            )
+          );
+        allow update, delete: if false;
       }
     }
   }

@@ -12,9 +12,11 @@ import { firebaseAuth } from "@/firebase/firebase-client";
 import { enforceAuthSession } from "@/features/auth/lib/auth-session";
 import {
   createPersonalExpense,
+  deletePersonalExpense,
   getPersonalExpenseErrorMessage,
   subscribePersonalExpenses,
   updatePersonalExpense,
+  restorePersonalExpense,
   type PersonalExpense,
 } from "@/features/personal-expenses/lib/personal-expenses";
 import { formatMoney } from "@/features/notebooks/lib/hisaba-notebooks";
@@ -52,8 +54,10 @@ export function PersonalExpensesPage() {
   const [description, setDescription] = useState("");
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
   const [editingEntryDate, setEditingEntryDate] = useState("");
+  const [recentlyDeletedExpense, setRecentlyDeletedExpense] = useState<PersonalExpense | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeletingExpenseId, setIsDeletingExpenseId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
@@ -82,6 +86,11 @@ export function PersonalExpensesPage() {
     [expenses],
   );
 
+  const visibleExpenses = useMemo(
+    () => expenses.filter((expense) => !expense.deletedAt),
+    [expenses],
+  );
+
   const isEditing = Boolean(editingExpenseId);
 
   function resetForm() {
@@ -104,6 +113,46 @@ export function PersonalExpensesPage() {
   function handleCancelEdit() {
     resetForm();
     setErrorMessage("");
+  }
+
+  async function handleDeleteExpense(expense: PersonalExpense) {
+    if (!user) {
+      return;
+    }
+
+    setIsDeletingExpenseId(expense.id);
+    setErrorMessage("");
+
+    try {
+      await deletePersonalExpense(user.uid, expense.id);
+      setRecentlyDeletedExpense(expense);
+
+      if (editingExpenseId === expense.id) {
+        resetForm();
+      }
+    } catch (error) {
+      setErrorMessage(getPersonalExpenseErrorMessage(error));
+    } finally {
+      setIsDeletingExpenseId(null);
+    }
+  }
+
+  async function handleUndoDelete() {
+    if (!user || !recentlyDeletedExpense) {
+      return;
+    }
+
+    setIsSaving(true);
+    setErrorMessage("");
+
+    try {
+      await restorePersonalExpense(user.uid, recentlyDeletedExpense.id);
+      setRecentlyDeletedExpense(null);
+    } catch (error) {
+      setErrorMessage(getPersonalExpenseErrorMessage(error));
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -250,9 +299,30 @@ export function PersonalExpensesPage() {
           </div>
         </SurfaceCard>
 
-        {expenses.length ? (
+        {recentlyDeletedExpense ? (
+          <SurfaceCard className="flex flex-wrap items-center justify-between gap-3 border-emerald-200 bg-emerald-50/60">
+            <div>
+              <h3 className="text-base font-semibold text-zinc-950">
+                Expense deleted
+              </h3>
+              <p className="mt-1 text-sm text-zinc-600">
+                {recentlyDeletedExpense.category} was removed. Undo if that was a mistake.
+              </p>
+            </div>
+            <AppButton
+              disabled={isSaving}
+              onClick={handleUndoDelete}
+              type="button"
+              variant="secondary"
+            >
+              Undo
+            </AppButton>
+          </SurfaceCard>
+        ) : null}
+
+        {visibleExpenses.length ? (
           <div className="grid gap-3">
-            {expenses.map((expense) => (
+            {visibleExpenses.map((expense) => (
               <SurfaceCard key={expense.id} className="grid gap-2">
                 <div className="flex items-start justify-between gap-3">
                   <div className="grid gap-1">
@@ -273,6 +343,14 @@ export function PersonalExpensesPage() {
                       variant="secondary"
                     >
                       Edit
+                    </AppButton>
+                    <AppButton
+                      disabled={isDeletingExpenseId === expense.id || isSaving}
+                      onClick={() => handleDeleteExpense(expense)}
+                      type="button"
+                      variant="danger"
+                    >
+                      {isDeletingExpenseId === expense.id ? "Deleting..." : "Delete"}
                     </AppButton>
                   </div>
                 </div>

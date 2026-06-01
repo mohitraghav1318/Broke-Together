@@ -21,6 +21,9 @@ type NotebookEntryFormProps = {
   notebook: HisabaNotebook;
   categories: string[];
   isSaving: boolean;
+  initialValues?: NotebookEntryDraft;
+  submitLabel?: string;
+  onCancel?: () => void;
   onSubmit: (draft: NotebookEntryDraft) => Promise<boolean>;
 };
 
@@ -28,6 +31,9 @@ export function NotebookEntryForm({
   notebook,
   categories,
   isSaving,
+  initialValues,
+  submitLabel,
+  onCancel,
   onSubmit,
 }: NotebookEntryFormProps) {
   const {
@@ -40,7 +46,7 @@ export function NotebookEntryForm({
     setDescription,
     borrowerOptions,
     resetForm,
-  } = useNotebookEntryForm({ notebook, categories });
+  } = useNotebookEntryForm({ notebook, categories, initialValues });
 
   const isLoan = state.entryType === "loan";
   const canPickBorrower = borrowerOptions.length > 0;
@@ -52,7 +58,7 @@ export function NotebookEntryForm({
       loanFriendId: isLoan ? state.loanFriendId : "",
     });
 
-    if (success) {
+    if (success && !initialValues) {
       resetForm();
     }
   }
@@ -173,9 +179,21 @@ export function NotebookEntryForm({
         </InlineAlert>
       ) : null}
 
-      <AppButton disabled={isSaving} type="submit">
-        {isSaving ? "Saving..." : "Add entry"}
-      </AppButton>
+      <div className="flex gap-3">
+        <AppButton disabled={isSaving} type="submit">
+          {isSaving ? "Saving..." : submitLabel || "Add entry"}
+        </AppButton>
+        {onCancel ? (
+          <AppButton
+            disabled={isSaving}
+            onClick={onCancel}
+            type="button"
+            variant="secondary"
+          >
+            Cancel
+          </AppButton>
+        ) : null}
+      </div>
     </form>
   );
 }
