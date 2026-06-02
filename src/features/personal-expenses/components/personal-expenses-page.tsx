@@ -2,14 +2,19 @@
 
 import { onAuthStateChanged, type User } from "firebase/auth";
 import Link from "next/link";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AppButton } from "@/components/ui/app-button";
 import { InlineAlert } from "@/components/ui/inline-alert";
 import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
 import { SurfaceCard } from "@/components/ui/surface-card";
-import { TextInput } from "@/components/ui/text-input";
 import { firebaseAuth } from "@/firebase/firebase-client";
 import { enforceAuthSession } from "@/features/auth/lib/auth-session";
+import { PersonalExpenseActivityTable } from "@/features/personal-expenses/components/personal-expense-activity-table";
+import {
+  PersonalExpenseDialog,
+  type PersonalExpenseDraft,
+} from "@/features/personal-expenses/components/personal-expense-dialog";
+import { PersonalExpenseSummaryCard } from "@/features/personal-expenses/components/personal-expense-summary-card";
 import {
   createPersonalExpense,
   deletePersonalExpense,
@@ -19,41 +24,16 @@ import {
   restorePersonalExpense,
   type PersonalExpense,
 } from "@/features/personal-expenses/lib/personal-expenses";
-import { formatMoney } from "@/features/notebooks/lib/hisaba-notebooks";
 
 function getTodayDate() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function formatExpenseTimestamp(timestamp: PersonalExpense["createdAt"]) {
-  const date = timestamp?.toDate();
-
-  if (!date) {
-    return "";
-  }
-
-  const datePart = new Intl.DateTimeFormat("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(date);
-  const timePart = new Intl.DateTimeFormat("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  }).format(date);
-
-  return `${datePart} • ${timePart}`;
-}
-
 export function PersonalExpensesPage() {
   const [user, setUser] = useState<User | null>(null);
   const [expenses, setExpenses] = useState<PersonalExpense[]>([]);
-  const [amount, setAmount] = useState("");
-  const [category, setCategory] = useState("");
-  const [description, setDescription] = useState("");
-  const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
-  const [editingEntryDate, setEditingEntryDate] = useState("");
+  const [editingExpense, setEditingExpense] = useState<PersonalExpense | null>(null);
+  const [isExpenseDialogOpen, setIsExpenseDialogOpen] = useState(false);
   const [recentlyDeletedExpense, setRecentlyDeletedExpense] = useState<PersonalExpense | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -81,37 +61,37 @@ export function PersonalExpensesPage() {
     );
   }, [user]);
 
-  const totalSpent = useMemo(
-    () => expenses.reduce((sum, expense) => sum + expense.amount, 0),
-    [expenses],
-  );
-
   const visibleExpenses = useMemo(
     () => expenses.filter((expense) => !expense.deletedAt),
     [expenses],
   );
 
-  const isEditing = Boolean(editingExpenseId);
+  const isEditing = Boolean(editingExpense);
 
-  function resetForm() {
-    setAmount("");
-    setCategory("");
-    setDescription("");
-    setEditingExpenseId(null);
-    setEditingEntryDate("");
+  function getDialogInitialValues(): PersonalExpenseDraft {
+    return {
+      amount: editingExpense ? String(editingExpense.amount) : "",
+      category: editingExpense?.category || "",
+      description: editingExpense?.description || "",
+      entryDate: editingExpense?.entryDate || getTodayDate(),
+    };
+  }
+
+  function handleAddExpense() {
+    setEditingExpense(null);
+    setErrorMessage("");
+    setIsExpenseDialogOpen(true);
   }
 
   function handleEditExpense(expense: PersonalExpense) {
-    setEditingExpenseId(expense.id);
-    setAmount(String(expense.amount));
-    setCategory(expense.category);
-    setDescription(expense.description);
-    setEditingEntryDate(expense.entryDate);
+    setEditingExpense(expense);
     setErrorMessage("");
+    setIsExpenseDialogOpen(true);
   }
 
-  function handleCancelEdit() {
-    resetForm();
+  function handleCloseExpenseDialog() {
+    setIsExpenseDialogOpen(false);
+    setEditingExpense(null);
     setErrorMessage("");
   }
 
@@ -127,8 +107,8 @@ export function PersonalExpensesPage() {
       await deletePersonalExpense(user.uid, expense.id);
       setRecentlyDeletedExpense(expense);
 
-      if (editingExpenseId === expense.id) {
-        resetForm();
+      if (editingExpense?.id === expense.id) {
+        handleCloseExpenseDialog();
       }
     } catch (error) {
       setErrorMessage(getPersonalExpenseErrorMessage(error));
@@ -155,11 +135,26 @@ export function PersonalExpensesPage() {
     }
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
+  async function handleSubmitExpense(draft: PersonalExpenseDraft) {
     if (!user) {
-      return;
+      return false;
+    }
+
+    const currentEditingExpense = editingExpense;
+
+    if (!draft.amount) {
+      setErrorMessage("Enter a valid amount.");
+      return false;
+    }
+
+    if (!draft.category.trim()) {
+      setErrorMessage("Add a category.");
+      return false;
+    }
+
+    if (!draft.entryDate) {
+      setErrorMessage("Pick a date.");
+      return false;
     }
 
     setIsSaving(true);
@@ -167,21 +162,23 @@ export function PersonalExpensesPage() {
 
     try {
       const payload = {
-        amount: Number(amount),
-        category,
-        description,
-        entryDate: isEditing ? editingEntryDate : getTodayDate(),
+        amount: Number(draft.amount),
+        category: draft.category,
+        description: draft.description,
+        entryDate: draft.entryDate,
       };
 
-      if (isEditing && editingExpenseId) {
-        await updatePersonalExpense(user.uid, editingExpenseId, payload);
+      if (currentEditingExpense) {
+        await updatePersonalExpense(user.uid, currentEditingExpense.id, payload);
       } else {
         await createPersonalExpense(user.uid, payload);
       }
 
-      resetForm();
+      handleCloseExpenseDialog();
+      return true;
     } catch (error) {
       setErrorMessage(getPersonalExpenseErrorMessage(error));
+      return false;
     } finally {
       setIsSaving(false);
     }
@@ -211,93 +208,25 @@ export function PersonalExpensesPage() {
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
-      <SurfaceCard className="self-start">
-        <div className="mb-6 grid gap-2">
-          <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">
-            Personal expenses
-          </p>
-          <h1 className="text-3xl font-semibold text-zinc-950">
-            {isEditing ? "Edit expense" : "Add expense"}
-          </h1>
-          <p className="text-sm leading-6 text-zinc-600">
-            Track what you spend each day. Your latest expenses appear on the
-            right.
-          </p>
-        </div>
-
-        <form className="grid gap-4" onSubmit={handleSubmit}>
-          <TextInput
-            id="amount"
-            label="Amount"
-            min="0"
-            onChange={(event) => setAmount(event.target.value)}
-            placeholder="120"
-            step="1"
-            type="number"
-            value={amount}
-          />
-
-          <TextInput
-            id="category"
-            label="Category"
-            onChange={(event) => setCategory(event.target.value)}
-            placeholder="Food, Travel, Shopping"
-            type="text"
-            value={category}
-          />
-
-          <label
-            className="grid gap-2 text-sm font-medium text-zinc-800"
-            htmlFor="description"
-          >
-            Description
-            <textarea
-              className="min-h-24 rounded-md border border-zinc-300 bg-white px-3 py-2 text-base text-zinc-950 outline-none transition-colors placeholder:text-zinc-400 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
-              id="description"
-              onChange={(event) => setDescription(event.target.value)}
-              placeholder="Notes or items"
-              value={description}
-            />
-          </label>
-
-          {errorMessage ? (
-            <InlineAlert tone="error">{errorMessage}</InlineAlert>
-          ) : null}
-
-          <div className="flex gap-3">
-            <AppButton disabled={isSaving} type="submit">
-              {isSaving ? "Saving..." : isEditing ? "Save changes" : "Add expense"}
-            </AppButton>
-
-            {isEditing ? (
-              <AppButton
-                disabled={isSaving}
-                onClick={handleCancelEdit}
-                type="button"
-                variant="secondary"
-              >
-                Cancel
-              </AppButton>
-            ) : null}
-          </div>
-        </form>
-      </SurfaceCard>
-
+    <div className="grid gap-6">
       <section className="grid gap-4">
-        <SurfaceCard className="flex flex-wrap items-center justify-between gap-2">
+        <SurfaceCard className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-2xl font-semibold text-zinc-950">
-              Recent expenses
+              Personal expenses
             </h2>
             <p className="mt-1 text-sm text-zinc-600">
-              Sorted by newest first.
+              Review spending, category split, and recent activity.
             </p>
           </div>
-          <div className="text-sm font-semibold text-emerald-700">
-            Total: {formatMoney(totalSpent)}
-          </div>
+          <AppButton onClick={handleAddExpense} type="button">
+            Add expense
+          </AppButton>
         </SurfaceCard>
+
+        {errorMessage && !isExpenseDialogOpen ? (
+          <InlineAlert tone="error">{errorMessage}</InlineAlert>
+        ) : null}
 
         {recentlyDeletedExpense ? (
           <SurfaceCard className="flex flex-wrap items-center justify-between gap-3 border-emerald-200 bg-emerald-50/60">
@@ -320,59 +249,29 @@ export function PersonalExpensesPage() {
           </SurfaceCard>
         ) : null}
 
-        {visibleExpenses.length ? (
-          <div className="grid gap-3">
-            {visibleExpenses.map((expense) => (
-              <SurfaceCard key={expense.id} className="grid gap-2">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="grid gap-1">
-                    <p className="text-sm font-semibold text-zinc-950">
-                      {expense.category}
-                    </p>
-                    <p className="text-xs text-zinc-500">
-                      {formatExpenseTimestamp(expense.createdAt) || "No date"}
-                    </p>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <div className="text-right text-sm font-semibold text-zinc-900">
-                      {formatMoney(expense.amount)}
-                    </div>
-                    <AppButton
-                      onClick={() => handleEditExpense(expense)}
-                      type="button"
-                      variant="secondary"
-                    >
-                      Edit
-                    </AppButton>
-                    <AppButton
-                      disabled={isDeletingExpenseId === expense.id || isSaving}
-                      onClick={() => handleDeleteExpense(expense)}
-                      type="button"
-                      variant="danger"
-                    >
-                      {isDeletingExpenseId === expense.id ? "Deleting..." : "Delete"}
-                    </AppButton>
-                  </div>
-                </div>
-                {expense.description ? (
-                  <p className="text-sm text-zinc-600">
-                    {expense.description}
-                  </p>
-                ) : null}
-              </SurfaceCard>
-            ))}
-          </div>
-        ) : (
-          <SurfaceCard className="grid gap-2">
-            <h3 className="text-lg font-semibold text-zinc-950">
-              No expenses yet
-            </h3>
-            <p className="text-sm leading-6 text-zinc-600">
-              Add your first personal expense to get started.
-            </p>
-          </SurfaceCard>
-        )}
+        <PersonalExpenseSummaryCard expenses={visibleExpenses} />
+
+        <PersonalExpenseActivityTable
+          expenses={visibleExpenses}
+          isDeletingExpenseId={isDeletingExpenseId}
+          isSaving={isSaving}
+          onAddExpense={handleAddExpense}
+          onDeleteExpense={handleDeleteExpense}
+          onEditExpense={handleEditExpense}
+        />
       </section>
+
+      {isExpenseDialogOpen ? (
+        <PersonalExpenseDialog
+          errorMessage={errorMessage}
+          initialValues={getDialogInitialValues()}
+          isSaving={isSaving}
+          onClose={handleCloseExpenseDialog}
+          onSubmit={handleSubmitExpense}
+          submitLabel={isEditing ? "Save changes" : "Add expense"}
+          title={isEditing ? "Edit expense" : "Add expense"}
+        />
+      ) : null}
     </div>
   );
 }
