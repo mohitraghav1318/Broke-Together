@@ -8,7 +8,7 @@ import type {
 } from "@/features/notebooks/lib/hisaba-notebooks";
 import { useNotebookEntryForm } from "@/features/notebooks/hooks/use-notebook-entry-form";
 
-type NotebookEntryDraft = {
+export type NotebookEntryDraft = {
   entryType: NotebookEntryType;
   amount: string;
   paidByFriendId: string;

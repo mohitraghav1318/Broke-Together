@@ -10,9 +10,9 @@ import { SurfaceCard } from "@/components/ui/surface-card";
 import { TextInput } from "@/components/ui/text-input";
 import { firebaseAuth } from "@/firebase/firebase-client";
 import { enforceAuthSession } from "@/features/auth/lib/auth-session";
-import { NotebookEntryForm } from "@/features/notebooks/components/notebook-entry-form";
+import { NotebookEntryDialog } from "@/features/notebooks/components/notebook-entry-dialog";
+import type { NotebookEntryDraft } from "@/features/notebooks/components/notebook-entry-form";
 import { NotebookSummaryCard } from "@/features/notebooks/components/notebook-summary-card";
-import type { NotebookEntryFormState } from "@/features/notebooks/hooks/use-notebook-entry-form";
 import {
   addNotebookEntry,
   addNotebookCategory,
@@ -59,6 +59,7 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
   const [isSavingCategory, setIsSavingCategory] = useState(false);
   const [isSavingEntry, setIsSavingEntry] = useState(false);
   const [isEditingNotebook, setIsEditingNotebook] = useState(false);
+  const [isEntryDialogOpen, setIsEntryDialogOpen] = useState(false);
   const [notebookName, setNotebookName] = useState("");
   const [friendName, setFriendName] = useState("");
   const [categoryName, setCategoryName] = useState("");
@@ -250,7 +251,7 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
     }
   }
 
-  async function handleSubmitEntry(draft: NotebookEntryFormState) {
+  async function handleSubmitEntry(draft: NotebookEntryDraft) {
     if (!user) {
       return false;
     }
@@ -270,6 +271,7 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
       };
 
       await addNotebookEntry(notebookId, user, payload);
+      setIsEntryDialogOpen(false);
       setSuccessMessage("Entry added.");
       return true;
     } catch (error) {
@@ -362,6 +364,9 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
             </h1>
           </div>
           <div className="flex flex-wrap gap-2">
+            <AppButton onClick={() => setIsEntryDialogOpen(true)}>
+              Add entry
+            </AppButton>
             <Link
               className="inline-flex h-11 items-center justify-center rounded-md border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-950 transition-colors hover:bg-zinc-100"
               href="/notebooks"
@@ -540,68 +545,61 @@ export function NotebookWorkspace({ notebookId }: NotebookWorkspaceProps) {
         </SurfaceCard>
       ) : null}
 
-      <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
-        <div className="grid gap-6 self-start">
-          <SurfaceCard>
-            <h2 className="mb-4 text-xl font-semibold text-zinc-950">
-              Add entry
-            </h2>
-            <NotebookEntryForm
-              key="create-entry"
-              categories={notebookCategories}
-              isSaving={isSavingEntry}
-              notebook={notebook}
-              onSubmit={handleSubmitEntry}
-            />
-          </SurfaceCard>
-        </div>
+      <div className="grid gap-6">
+        <NotebookSummaryCard
+          entries={entries}
+          notebook={notebook}
+          notebookId={notebookId}
+        />
 
-        <div className="grid gap-6">
-          <NotebookSummaryCard
-            entries={entries}
-            notebook={notebook}
-            notebookId={notebookId}
-          />
-
-          <SurfaceCard>
-            <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <h2 className="text-xl font-semibold text-zinc-950">
-                  Recent activity
-                </h2>
-                <p className="mt-1 text-sm text-zinc-600">
-                  Latest notebook changes and transactions.
-                </p>
-              </div>
-              <Link
-                className="inline-flex h-11 items-center justify-center rounded-md border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-950 transition-colors hover:bg-zinc-100"
-                href={`/notebooks/${notebookId}/transactions`}
-              >
-                View all transactions
-              </Link>
-            </div>
-
-            {activities.length ? (
-              <div className="divide-y divide-zinc-200 overflow-hidden rounded-lg border border-zinc-200">
-                {activities.map((activity) => (
-                  <div className="grid gap-1 px-4 py-3" key={activity.id}>
-                    <p className="text-sm font-medium text-zinc-950">
-                      {activity.summary}
-                    </p>
-                    <p className="text-xs text-zinc-500">
-                      {formatActivityTimestamp(activity.createdAt)}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="rounded-md border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-600">
-                No activity yet.
+        <SurfaceCard>
+          <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-xl font-semibold text-zinc-950">
+                Recent activity
+              </h2>
+              <p className="mt-1 text-sm text-zinc-600">
+                Latest notebook changes and transactions.
               </p>
-            )}
-          </SurfaceCard>
-        </div>
+            </div>
+            <Link
+              className="inline-flex h-11 items-center justify-center rounded-md border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-950 transition-colors hover:bg-zinc-100"
+              href={`/notebooks/${notebookId}/transactions`}
+            >
+              View all transactions
+            </Link>
+          </div>
+
+          {activities.length ? (
+            <div className="divide-y divide-zinc-200 overflow-hidden rounded-lg border border-zinc-200">
+              {activities.map((activity) => (
+                <div className="grid gap-1 px-4 py-3" key={activity.id}>
+                  <p className="text-sm font-medium text-zinc-950">
+                    {activity.summary}
+                  </p>
+                  <p className="text-xs text-zinc-500">
+                    {formatActivityTimestamp(activity.createdAt)}
+                  </p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="rounded-md border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-600">
+              No activity yet.
+            </p>
+          )}
+        </SurfaceCard>
       </div>
+
+      <NotebookEntryDialog
+        categories={notebookCategories}
+        isOpen={isEntryDialogOpen}
+        isSaving={isSavingEntry}
+        notebook={notebook}
+        onClose={() => setIsEntryDialogOpen(false)}
+        onSubmit={handleSubmitEntry}
+        title="Add entry"
+      />
     </div>
   );
 }

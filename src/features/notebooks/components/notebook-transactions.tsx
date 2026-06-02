@@ -9,8 +9,9 @@ import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
 import { SurfaceCard } from "@/components/ui/surface-card";
 import { firebaseAuth } from "@/firebase/firebase-client";
 import { enforceAuthSession } from "@/features/auth/lib/auth-session";
-import { NotebookEntryForm } from "@/features/notebooks/components/notebook-entry-form";
-import type { NotebookEntryFormState } from "@/features/notebooks/hooks/use-notebook-entry-form";
+import { NotebookEntryDialog } from "@/features/notebooks/components/notebook-entry-dialog";
+import type { NotebookEntryDraft } from "@/features/notebooks/components/notebook-entry-form";
+import { NotebookSummaryCard } from "@/features/notebooks/components/notebook-summary-card";
 import {
   formatMoney,
   getNotebookCategories,
@@ -49,7 +50,7 @@ export function NotebookTransactions({ notebookId }: NotebookTransactionsProps) 
   const [isDeletingEntryId, setIsDeletingEntryId] = useState<string | null>(null);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [editingEntryDraft, setEditingEntryDraft] =
-    useState<NotebookEntryFormState | null>(null);
+    useState<NotebookEntryDraft | null>(null);
   const [recentlyDeletedEntry, setRecentlyDeletedEntry] =
     useState<NotebookEntry | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
@@ -126,7 +127,7 @@ export function NotebookTransactions({ notebookId }: NotebookTransactionsProps) 
     setEditingEntryDraft(null);
   }
 
-  async function handleSubmitEntry(draft: NotebookEntryFormState) {
+  async function handleSubmitEntry(draft: NotebookEntryDraft) {
     if (!user || !editingEntryId) {
       return false;
     }
@@ -290,23 +291,11 @@ export function NotebookTransactions({ notebookId }: NotebookTransactionsProps) 
         <InlineAlert tone="success">{successMessage}</InlineAlert>
       ) : null}
 
-      {editingEntryId && editingEntryDraft ? (
-        <SurfaceCard>
-          <h2 className="mb-4 text-xl font-semibold text-zinc-950">
-            Edit transaction
-          </h2>
-          <NotebookEntryForm
-            key={editingEntryId}
-            categories={notebookCategories}
-            initialValues={editingEntryDraft}
-            isSaving={isSavingEntry}
-            notebook={notebook}
-            onCancel={handleCancelEditEntry}
-            onSubmit={handleSubmitEntry}
-            submitLabel="Save changes"
-          />
-        </SurfaceCard>
-      ) : null}
+      <NotebookSummaryCard
+        entries={entries}
+        notebook={notebook}
+        notebookId={notebookId}
+      />
 
       <SurfaceCard>
         <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
@@ -456,6 +445,19 @@ export function NotebookTransactions({ notebookId }: NotebookTransactionsProps) 
           </p>
         )}
       </SurfaceCard>
+
+      <NotebookEntryDialog
+        categories={notebookCategories}
+        formKey={editingEntryId || "edit-entry"}
+        initialValues={editingEntryDraft || undefined}
+        isOpen={Boolean(editingEntryId && editingEntryDraft)}
+        isSaving={isSavingEntry}
+        notebook={notebook}
+        onClose={handleCancelEditEntry}
+        onSubmit={handleSubmitEntry}
+        submitLabel="Save changes"
+        title="Edit transaction"
+      />
     </div>
   );
 }
