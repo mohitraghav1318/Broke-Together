@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SummaryMetricCard } from "@/components/ui/summary-metric-card";
 import { SurfaceCard } from "@/components/ui/surface-card";
 import {
   calculateSettlements,
@@ -32,9 +33,14 @@ export function NotebookSummaryCard({
   notebook,
   notebookId,
 }: NotebookSummaryCardProps) {
-  const currentMonthTotal = entries
-    .filter(isCurrentMonthExpense)
-    .reduce((sum, entry) => sum + entry.amount, 0);
+  const currentMonthExpenses = entries.filter(isCurrentMonthExpense);
+  const loanEntries = entries.filter((entry) => entry.entryType === "loan");
+  const currentMonthTotal = currentMonthExpenses.reduce(
+    (sum, entry) => sum + entry.amount,
+    0,
+  );
+  const totalLentMoney = loanEntries.reduce((sum, entry) => sum + entry.amount, 0);
+  const loanCount = loanEntries.length;
   const settlements = calculateSettlements(notebook.friends, entries);
 
   return (
@@ -43,7 +49,7 @@ export function NotebookSummaryCard({
         <div>
           <h2 className="text-xl font-semibold text-zinc-950">Summary</h2>
           <p className="mt-1 text-sm text-zinc-600">
-            This month&apos;s spending and current settlement.
+            This month&apos;s spending, total lent money, and current settlement.
           </p>
         </div>
         <Link
@@ -54,17 +60,23 @@ export function NotebookSummaryCard({
         </Link>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-[220px_1fr]">
-        <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4">
-          <p className="text-sm font-medium text-zinc-600">
-            Expenses this month
-          </p>
-          <p className="mt-2 text-3xl font-semibold text-zinc-950">
-            {formatMoney(currentMonthTotal)}
-          </p>
-        </div>
+      <div className="grid gap-4 xl:grid-cols-[220px_220px_1fr]">
+        <SummaryMetricCard
+          detail={`${currentMonthExpenses.length} ${
+            currentMonthExpenses.length === 1 ? "expense" : "expenses"
+          } this month`}
+          label="Expenses this month"
+          value={formatMoney(currentMonthTotal)}
+        />
 
-        <div className="rounded-lg border border-zinc-200 bg-white">
+        <SummaryMetricCard
+          detail={`${loanCount} ${loanCount === 1 ? "loan" : "loans"} recorded`}
+          label="Total lent money"
+          tone="emerald"
+          value={formatMoney(totalLentMoney)}
+        />
+
+        <div className="rounded-lg border border-zinc-200 bg-white xl:col-span-1">
           <div className="border-b border-zinc-200 bg-zinc-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">
             Who pays whom
           </div>

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Analytics } from "@vercel/analytics/next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { PwaRegistration } from "@/components/pwa-registration";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -19,9 +20,16 @@ export const metadata: Metadata = {
     default: "Broke Together | Split Expenses Effortlessly",
   },
   description: "Track shared expenses with friends and groups.",
-  icons: {
-    icon: "/icon.svg",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    title: "Broke Together",
+    statusBarStyle: "default",
   },
+};
+
+export const viewport = {
+  themeColor: "#16a34a",
 };
 
 export default function RootLayout({
@@ -35,6 +43,7 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full">
+        <PwaRegistration />
         {children}
         <Analytics />
       </body>
